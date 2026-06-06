@@ -101,8 +101,9 @@ for the full list with rationale. The ones that change *how code is written*:
   on demand and cached in Redis by TTL (see table above). `BacktestResult`
   *is* persisted, with `tearsheet`/`daily_returns`/`equity_curve` as JSONB.
 - `^TNX` (10-year Treasury yield, used as the risk-free rate) is quoted by
-  Yahoo as yield × 10 — divide by 10 before use; fall back to `0.04` if the
-  fetch fails.
+  Yahoo as a percentage value (e.g. `4.21` = 4.21%) — divide by **100** to
+  get the decimal rate; fall back to `0.04` if the fetch fails. Original docs
+  said "divide by 10" — that was wrong (see Decision 25 in PHASES.md).
 - Test fixtures with hand-computable expected values live in
   `tests/fixtures/known_values.py` (Phase 3 prerequisite — lock these *before*
   implementing any financial function).

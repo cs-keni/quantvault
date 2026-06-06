@@ -3,6 +3,20 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 2: fix ^TNX math across all docs
+
+Commit: (this entry)
+
+Corrected the `^TNX` risk-free rate formula across PHASES.md (decision 25),
+HANDOFF.md (both "Known quirks" and "Next up"), and AI_CONTEXT.md. The
+original "divide by 10" note was wrong: if Yahoo Finance returns `4.21`
+(4.21%), then `/ 10 = 0.42` (42% risk-free rate — nonsense). The correct
+formula is `raw / 100 → 0.0421`. Cross-confirmed via the `0.04` fallback:
+if raw ≈ 4.0 and we need decimal ≈ 0.04, the formula must be `/ 100`.
+This was verified from first principles because Yahoo Finance was unreachable
+from WSL2 (rate-limiting/blocking) during the live-data verification attempt.
+T6 (live verification) remains open but unblocked — the formula is settled.
+
 ## 2026-06-06 — Phase 2 planning: architecture locked via /plan-eng-review
 
 Commit: (this entry) — docs: lock Phase 2 architecture decisions in PHASES.md, HANDOFF.md, AI_CONTEXT.md

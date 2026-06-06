@@ -33,7 +33,7 @@
 | 22 | Cache serialization: `pd.DataFrame.to_json(orient='split', date_format='iso')` | fixed schema prevents shape/precision drift between cache hits and live fetches |
 | 23 | Cache key namespace: `qv:mds:` prefix on all MarketDataService keys | prevents collision with Celery's `celery-task-meta-*` keys sharing Redis DB 0 |
 | 24 | `get_historical_returns()` reindexes output: `returns_df[tickers]` (requested order, not sorted) | sorted tickers needed for cache key consistency; returned DataFrame must match caller's weight order for correct dot products in Phase 3 |
-| 25 | `^TNX` math: verify raw yfinance value → exact decimal before Phase 3 | both Claude + Codex flagged ambiguity in "divide by 10" docs; wrong conversion silently breaks every Sharpe/Sortino ratio |
+| 25 | `^TNX` math: Yahoo returns yield as percentage (e.g. 4.21 = 4.21%) → `raw / 100` gives decimal 0.0421 | "divide by 10" in original docs was wrong — `4.2 / 10 = 0.42` (42%), not a risk-free rate; fallback `0.04` cross-confirms: raw ~4.0 / 100 = 0.04 |
 | 26 | `fakeredis[aioredis]` for Redis test isolation | `AsyncMock` can only assert setex called; `fakeredis` enables real cache hit/miss behavioral tests (second call skips yfinance) |
 | 27 | Smoke tests gated behind `INTEGRATION_TESTS=1` env flag | live-network tests in default pytest cause flaky CI; mark with `@pytest.mark.skipif(not os.getenv("INTEGRATION_TESTS"), ...)` |
 
@@ -85,7 +85,7 @@
 - [ ] `app/services/market_data_service.py` — `MarketDataService` class:
   - `_cache_through(key, ttl, fetch_fn, serialize, deserialize)` private helper (decision 17)
   - `get_historical_returns(tickers, period)` — cache key `qv:mds:returns:{sorted_tickers}:{period}`, TTL 24h; reindex output to requested order (decisions 22–24)
-  - `get_risk_free_rate()` — `^TNX` fetch ÷ 10 (verify exact decimal with known-value test first — decision 25), cache 24h, fallback `0.04`
+  - `get_risk_free_rate()` — `^TNX` fetch ÷ 100 (Yahoo returns percentage, e.g. 4.21 → 0.0421 — decision 25), cache 24h, fallback `0.04`
   - `get_ticker_info(ticker)` — company metadata, cache key `qv:mds:info:{ticker}`, TTL 7d
   - `get_quote(ticker)` — real-time quote, cache key `qv:mds:quote:{ticker}`, TTL 15m
   - `search_tickers(query)` — yfinance search wrapper
@@ -98,12 +98,12 @@
   - `GET /api/v1/market/{ticker}/history`
   - `GET /api/v1/market/{ticker}/info`
 - [ ] Register router in `app/main.py`
-- [ ] `T6 prerequisite:` run `yf.download("^TNX", period="1d")["Adj Close"].iloc[-1]` in dev shell, confirm exact raw→decimal conversion, document in `HANDOFF.md` (decision 25)
+- [ ] `T6 prerequisite (network-blocked):` verify `^TNX` raw value when Yahoo Finance reachable from WSL2; formula confirmed as `raw / 100` via fallback cross-check (decision 25)
 - [ ] `tests/test_market_data.py` — full unit test suite with `fakeredis` (decision 26):
   - Cache hit (yfinance not called), cache miss, correct TTLs per tier
   - Redis failure falls through; corrupt cache falls through
   - Empty DataFrame → 422; partial result NOT cached
-  - ^TNX fallback returns `0.04`; concrete numeric test for `^TNX` math (decision 25)
+  - ^TNX fallback returns `0.04`; concrete numeric test: `raw / 100 ≈ 0.042` (decision 25)
   - Column order matches requested tickers (decision 24)
   - All cache keys start with `qv:mds:` (decision 23)
   - Public endpoints: 200 without auth token
@@ -260,7 +260,7 @@
 - [ ] All optimizer results checked for `result.success` before appending (Phase 4)
 - [ ] Beta uses `_compute_beta` shared core — no duplicate math (Phase 3/6)
 - [ ] Backtest initializes `current_allocation` before loop (Phase 6)
-- [ ] `^TNX` yield divided by 10 before use as risk-free rate (Phase 2)
+- [ ] `^TNX` yield divided by 100 before use as risk-free rate (Phase 2)
 
 ---
 

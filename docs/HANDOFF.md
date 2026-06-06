@@ -77,8 +77,10 @@ would mean importing nonexistent modules (dangling imports that break mypy).
 - **`CLAUDE.md` has `## Skill Routing`** (capital R) — gstack's `HAS_ROUTING`
   check greps for lowercase `r` and reports "no". Routing is effectively
   configured; this is a cosmetic mismatch, not a real gap.
-- **`^TNX`** is quoted by Yahoo as yield × 10 (e.g. `4.2` means 4.2%, not
-  42%) — divide by 10, fall back to `0.04` on fetch failure.
+- **`^TNX`** is quoted by Yahoo as a percentage (e.g. `4.21` = 4.21% yield) —
+  divide by **100** to get a decimal; fall back to `0.04` on fetch failure.
+  (Original docs said "divide by 10" — that was wrong; `4.2 / 10 = 0.42` is
+  42%, not a reasonable risk-free rate.)
 - **Test DB**: `tests/conftest.py` defaults `TEST_DATABASE_URL` to
   `quantvault_test` on the same Postgres host as dev — override in CI. The
   `db` service in `docker-compose.yml` publishes `5432:5432` *specifically*
@@ -136,9 +138,12 @@ Phase 2 — Market Data Service. **Architecture locked 2026-06-06 via `/plan-eng
   but REINDEXES the returned DataFrame to requested order (`returns_df[tickers]`).
   `portfolio_to_weights()` returns tickers in holding order; Phase 3 dot products
   break silently if column order differs.
-- **^TNX math**: verify the exact raw→decimal conversion with a live `yf.download`
-  check in dev shell before implementing Phase 3. The existing "divide by 10" note
-  in docs is ambiguous — `get_risk_free_rate()` must return a decimal like `0.042`.
+- **^TNX math**: Yahoo Finance quotes `^TNX` as a percentage (e.g. `4.21` = 4.21% yield).
+  Correct formula is `raw / 100` to get a decimal (e.g. `4.21 / 100 = 0.0421`).
+  The "divide by 10" note in the original docs was wrong — cross-checked against the
+  `0.04` fallback (4% decimal), which only makes sense if the raw value is ~4.0 and
+  we divide by 100. Verify with a live `yf.download("^TNX", period="5d")` once
+  Yahoo Finance is reachable.
 - **Partial results NOT cached**: if any ticker is dropped by the data-quality
   pipeline (forward-fill ≤5 trading days, then drop), return partial data + warning
   in response body but do NOT write to Redis.
