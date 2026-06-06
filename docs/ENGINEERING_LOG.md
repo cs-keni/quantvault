@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-06 — Phase 2: /review pass fixes
 
-Commit: (this entry)
+Commit: c2c9c51
 
 Manual `/review` pass with specialist subagents (testing, maintainability, security) surfaced
 and fixed the following. All gates still green after fixes (48 passed, 2 skipped).
