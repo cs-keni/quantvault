@@ -68,6 +68,28 @@ for the full list with rationale. The ones that change *how code is written*:
   issues a real query needs to be on the *same* loop the DB connection's
   internal primitives were created on, or it raises `RuntimeError: Future
   ... attached to a different loop`.
+- **`MarketDataService` (Phase 2)**: `app/core/redis.py` holds a module-level
+  `redis_client = redis.asyncio.Redis.from_url(REDIS_URL)` (mirrors `database.py`);
+  `get_redis()` DI dependency; `get_market_data_service()` wraps a module-level
+  singleton. Tests override via `app.dependency_overrides[get_redis]` with
+  `fakeredis`. All yfinance calls go through
+  `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` — never call yfinance
+  directly in an async context. Cache keys prefixed `qv:mds:` to avoid Celery
+  collision. Returned DataFrames are reindexed to requested ticker order
+  (`returns_df[tickers]`) — NOT sorted order — so callers can safely dot-product
+  with weights from `portfolio_to_weights()` (which returns tickers in holding order).
+- **`^TNX` math (Phase 2)**: Verify the exact raw→decimal conversion with a
+  concrete numeric test before Phase 3 uses the risk-free rate. The docs say
+  "divide by 10" but the example is ambiguous. `get_risk_free_rate()` must
+  return a decimal like `0.042`, not a percentage like `4.2`.
+- **Cache serialization (Phase 2)**: `pd.DataFrame.to_json(orient='split', date_format='iso')`
+  and `pd.read_json(orient='split')`. Fixed schema prevents shape/dtype drift
+  between cache hits and fresh fetches.
+- **Redis failure handling (Phase 2)**: `_cache_through()` catches both `redis.RedisError`
+  and `json.JSONDecodeError`/`ValueError` (corrupt cache), logs a warning, and falls
+  through to a live yfinance fetch. Cache is optional — Redis being unavailable
+  degrades speed, not correctness. Partial results (tickers dropped by data-quality
+  pipeline) are NOT cached; only complete fetches write to Redis.
 
 ## Data format conventions
 

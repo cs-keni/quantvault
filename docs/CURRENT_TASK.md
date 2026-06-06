@@ -35,4 +35,4 @@ of 409 — now caught and translated).
 
 ## Next
 
-Phase 2 — Market Data Service (see `PHASES.md`).
+Phase 2 — Market Data Service. **Architecture locked** — all design decisions in `PHASES.md` decisions 15–27, `HANDOFF.md`, and `AI_CONTEXT.md`. Ready to implement T1–T6. First action: verify `^TNX` raw value in dev shell before writing any risk-free-rate code.

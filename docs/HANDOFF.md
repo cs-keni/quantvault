@@ -120,8 +120,29 @@ would mean importing nonexistent modules (dangling imports that break mypy).
 
 ## Next up
 
-Phase 2 — Market Data Service: `MarketDataService` (yfinance wrapper with
-async Redis caching for historical prices/quotes/metadata), `^TNX`
-risk-free-rate fetch (divide by 10, fall back to `0.04`), ticker search +
-historical price/returns endpoints, and data-quality handling (forward-fill
-gaps up to 5 days, then drop the ticker with a warning). See `PHASES.md`.
+Phase 2 — Market Data Service. **Architecture locked 2026-06-06 via `/plan-eng-review`
+(decisions 15–27 in `PHASES.md`).** Key decisions to know:
+
+- **Redis client**: module-level singleton in `app/core/redis.py`; `get_redis()` DI
+  (mirrors `database.py`). Tests override via `app.dependency_overrides[get_redis]`
+  with `fakeredis` — same pattern as `get_db`.
+- **yfinance is blocking**: every yfinance call goes through
+  `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)`. Never call yfinance
+  directly inside an `async def`.
+- **`_cache_through()` private helper**: all 4 cache tiers share one method;
+  catches `RedisError` and deserialization errors and falls through to live fetch
+  (Redis failure degrades speed, not correctness).
+- **Column order trap**: `get_historical_returns()` sorts tickers for the cache key
+  but REINDEXES the returned DataFrame to requested order (`returns_df[tickers]`).
+  `portfolio_to_weights()` returns tickers in holding order; Phase 3 dot products
+  break silently if column order differs.
+- **^TNX math**: verify the exact raw→decimal conversion with a live `yf.download`
+  check in dev shell before implementing Phase 3. The existing "divide by 10" note
+  in docs is ambiguous — `get_risk_free_rate()` must return a decimal like `0.042`.
+- **Partial results NOT cached**: if any ticker is dropped by the data-quality
+  pipeline (forward-fill ≤5 trading days, then drop), return partial data + warning
+  in response body but do NOT write to Redis.
+- **Cache keys**: `qv:mds:` prefix on all keys to avoid Celery collision in Redis DB 0.
+  Serialization: `pd.DataFrame.to_json(orient='split', date_format='iso')`.
+- **Public endpoints**: search + all market data endpoints are PUBLIC (no auth
+  required per spec). Do not add `CurrentUser` dependency to these routes.

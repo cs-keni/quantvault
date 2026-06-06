@@ -23,6 +23,19 @@
 | 12 | CVaR: `var_index = max(int(...), 1)` | prevents empty slice → NaN at high confidence levels |
 | 13 | Frontier target range: solve min-variance first as lower bound | naive `min(returns)` generates infeasible targets |
 | 14 | Beta: `_compute_beta` + two public wrappers | resolves spec signature conflict between API and backtest callers |
+| 15 | Redis client: module-level singleton in `app/core/redis.py` | mirrors `database.py` pattern; lazy connection, test-overridable via `app.dependency_overrides[get_redis]` |
+| 16 | `MarketDataService` wired via `get_market_data_service()` FastAPI DI | testable override pattern; consistent with `get_current_user`/`get_db` idiom |
+| 17 | `_cache_through(key, ttl, fetch_fn, serialize, deserialize)` private helper | DRY: 4 methods share identical cache-get/miss/set flow; error handling written once |
+| 18 | yfinance calls wrapped in `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` | prevents event-loop blocking; 30s cap stops hung requests from exhausting uvicorn thread pool |
+| 19 | Redis failures (ConnectionError, deserialization error) → log warning, fall through to live fetch | cache is an optimization; Redis being down degrades speed, not correctness |
+| 20 | Empty DataFrame from yfinance → `ValueError` → 422 | catches delisted/unknown tickers at service boundary; prevents cryptic numpy errors downstream |
+| 21 | Partial results (dropped tickers) NOT cached; return partial + warning in response | cache hit must return exactly what key implies; transient gaps self-heal on next fetch |
+| 22 | Cache serialization: `pd.DataFrame.to_json(orient='split', date_format='iso')` | fixed schema prevents shape/precision drift between cache hits and live fetches |
+| 23 | Cache key namespace: `qv:mds:` prefix on all MarketDataService keys | prevents collision with Celery's `celery-task-meta-*` keys sharing Redis DB 0 |
+| 24 | `get_historical_returns()` reindexes output: `returns_df[tickers]` (requested order, not sorted) | sorted tickers needed for cache key consistency; returned DataFrame must match caller's weight order for correct dot products in Phase 3 |
+| 25 | `^TNX` math: verify raw yfinance value → exact decimal before Phase 3 | both Claude + Codex flagged ambiguity in "divide by 10" docs; wrong conversion silently breaks every Sharpe/Sortino ratio |
+| 26 | `fakeredis[aioredis]` for Redis test isolation | `AsyncMock` can only assert setex called; `fakeredis` enables real cache hit/miss behavioral tests (second call skips yfinance) |
+| 27 | Smoke tests gated behind `INTEGRATION_TESTS=1` env flag | live-network tests in default pytest cause flaky CI; mark with `@pytest.mark.skipif(not os.getenv("INTEGRATION_TESTS"), ...)` |
 
 ---
 
@@ -66,19 +79,41 @@
 ---
 
 ## Phase 2 — Market Data Service
-- [ ] Implement `MarketDataService` — yfinance wrapper with async Redis caching
-  - Historical daily prices: TTL 24h (`returns:{tickers}:{period}`)
-  - Real-time quotes: TTL 15m
-  - Company metadata: TTL 7d
-  - Note: yfinance uses `"Adj Close"` (adjust for splits/dividends)
-- [ ] `^TNX` risk-free rate fetch: divide by 10 (Yahoo quotes yield * 10), cache with 24h TTL, fallback to `0.04` if fetch fails
-- [ ] Implement ticker search endpoint
-- [ ] Implement historical price/returns fetch endpoint
-- [ ] Write tests: mock yfinance, verify cache hit/miss behavior, verify TTL set correctly
-- [ ] Smoke test with real tickers: `VTI`, `AAPL`, `BND`, `SPY`, `^TNX`
-- [ ] Data quality handling: missing prices → forward-fill max 5 days, then drop ticker from result and return warning in response body
+> **Architecture locked 2026-06-06 via `/plan-eng-review`.** See decisions 15–27 above.
+
+- [ ] `app/core/redis.py` — `redis_client = redis.asyncio.Redis.from_url(...)` + `get_redis()` DI (mirrors `database.py`, decision 15)
+- [ ] `app/services/market_data_service.py` — `MarketDataService` class:
+  - `_cache_through(key, ttl, fetch_fn, serialize, deserialize)` private helper (decision 17)
+  - `get_historical_returns(tickers, period)` — cache key `qv:mds:returns:{sorted_tickers}:{period}`, TTL 24h; reindex output to requested order (decisions 22–24)
+  - `get_risk_free_rate()` — `^TNX` fetch ÷ 10 (verify exact decimal with known-value test first — decision 25), cache 24h, fallback `0.04`
+  - `get_ticker_info(ticker)` — company metadata, cache key `qv:mds:info:{ticker}`, TTL 7d
+  - `get_quote(ticker)` — real-time quote, cache key `qv:mds:quote:{ticker}`, TTL 15m
+  - `search_tickers(query)` — yfinance search wrapper
+  - All yfinance calls: `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` (decision 18)
+  - Redis/deserialization failures → log warning, fall through to live fetch (decision 19)
+  - Empty DataFrame → `ValueError` (decision 20); partial results (dropped tickers) → return data + warning, skip cache write (decision 21)
+- [ ] `app/schemas/market_data.py` — `HistoricalDataResponse`, `QuoteResponse`, `TickerInfoResponse`, `TickerSearchResponse`, `ValidateTickersResponse`
+- [ ] `app/api/v1/market_data.py` — public endpoints (no auth per spec):
+  - `GET /api/v1/market/search?q=...`
+  - `GET /api/v1/market/{ticker}/history`
+  - `GET /api/v1/market/{ticker}/info`
+- [ ] Register router in `app/main.py`
+- [ ] `T6 prerequisite:` run `yf.download("^TNX", period="1d")["Adj Close"].iloc[-1]` in dev shell, confirm exact raw→decimal conversion, document in `HANDOFF.md` (decision 25)
+- [ ] `tests/test_market_data.py` — full unit test suite with `fakeredis` (decision 26):
+  - Cache hit (yfinance not called), cache miss, correct TTLs per tier
+  - Redis failure falls through; corrupt cache falls through
+  - Empty DataFrame → 422; partial result NOT cached
+  - ^TNX fallback returns `0.04`; concrete numeric test for `^TNX` math (decision 25)
+  - Column order matches requested tickers (decision 24)
+  - All cache keys start with `qv:mds:` (decision 23)
+  - Public endpoints: 200 without auth token
+- [ ] Integration smoke tests (behind `INTEGRATION_TESTS=1`, decision 27): `VTI`, `AAPL`, `BND`, `SPY`, `^TNX`
+- [ ] Data quality: forward-fill gaps ≤5 trading days; drop tickers with >5-day gaps + return warning; never cache partial results
+- [ ] Run `/review` before marking Phase 2 complete
 
 **QoL:** `/api/v1/market/validate-tickers` batch validation endpoint for the Portfolio Builder UI.
+
+**NOT in scope (Phase 2):** Celery offload for fetches (asyncio.to_thread sufficient), rate limiting, input character whitelists, authenticated history endpoints (public per spec), persistent storage of price data.
 
 ---
 
@@ -245,6 +280,7 @@
 | Phase | Skill | When |
 |---|---|---|
 | 0 | `/plan-eng-review` | Done (2026-06-05) |
+| 2 | `/plan-eng-review` | Done (2026-06-06) — decisions 15–27 locked |
 | 3 | `/review` | Before marking Phase 3 complete |
 | 4 | `/plan-eng-review` | Before starting Phase 4 (optimization is math-heavy) |
 | 6 | `/review` | Before marking Phase 6 complete |

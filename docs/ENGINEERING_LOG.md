@@ -3,6 +3,32 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 2 planning: architecture locked via /plan-eng-review
+
+Commit: (this entry) — docs: lock Phase 2 architecture decisions in PHASES.md, HANDOFF.md, AI_CONTEXT.md
+
+Ran `/plan-eng-review` for Phase 2 (MarketDataService). 9 architecture/code-quality/test
+issues surfaced and resolved interactively; Codex outside voice ran and surfaced 5 additional
+findings, all accepted. Decisions 15–27 added to `PHASES.md` architecture table. No code
+written yet — this is the planning session.
+
+Key decisions that would be non-obvious from the spec:
+- `_cache_through(key, ttl, fetch_fn, serialize, deserialize)` private helper DRYs 4 identical
+  cache-get/miss/set blocks; graceful-degradation (Redis failure + corrupt cache) written once.
+- `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` for all yfinance calls — 30s cap
+  prevents hung requests from exhausting uvicorn's thread pool.
+- `get_historical_returns()` returns DataFrame in REQUESTED ticker order (not sorted order),
+  via `returns_df[tickers]` reindex — sorted order is only for the cache key. Phase 3 dot
+  products with `portfolio_to_weights()` weights depend on this being correct.
+- `^TNX` "divide by 10" note in docs is ambiguous. Verify with live `yf.download("^TNX", ...)` 
+  in dev shell before implementing Phase 3 Sharpe/Sortino (decision 25).
+- Cache keys prefixed `qv:mds:` to avoid Celery collision in Redis DB 0.
+- `fakeredis[aioredis]` for test isolation — `AsyncMock` can't test real cache hit/miss behavior.
+- Partial results (dropped tickers) NOT cached; only complete fetches write to Redis.
+
+Also updated `CLAUDE.md` to extend the Skill Routing section (was missing /context-restore,
+/spec, /office-hours, /investigate, and others).
+
 ## 2026-06-06 — Phase 1: Domain, Database, and Auth
 
 Commit: `4c5e0c4` — feat: add Phase 1 domain models, JWT auth, and seed script
