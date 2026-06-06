@@ -64,11 +64,21 @@ sync code walk for them requires an explicit `--allow-reclone` opt-in.
 
 ## Skill Routing
 
+When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
+
 - Architecture / phase review → `/plan-eng-review`
 - Pre-ship code review → `/review`
 - Post-feature QA → `/qa`
 - Commits and push → `/ship`
 - Financial math phases → run `/review` before marking complete (non-negotiable)
+- Strategy/scope → `/plan-ceo-review`
+- Design system/plan review → `/design-consultation` or `/plan-design-review`
+- Full review pipeline → `/autoplan`
+- Bugs/errors → `/investigate`
+- Visual polish → `/design-review`
+- Ship/deploy/PR → `/land-and-deploy`
+- Save/resume progress → `/context-save` / `/context-restore`
+- Author a backlog-ready spec/issue → `/spec`
 
 ## Architecture Decisions (locked 2026-06-05 via /plan-eng-review)
 
