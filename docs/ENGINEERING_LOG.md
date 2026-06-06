@@ -3,9 +3,44 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
-## 2026-06-06 — Phase 2: fix ^TNX math across all docs
+## 2026-06-06 — Phase 2: full implementation (T1–T5)
 
 Commit: (this entry)
+
+Implemented Phase 2 (MarketDataService) in full:
+
+**Files created:**
+- `app/core/redis.py` — module-level `redis_client` singleton + `get_redis()` DI, mirrors `database.py`
+- `app/services/market_data_service.py` — `MarketDataService` class: `_cache_through()` TypeVar helper,
+  `_apply_data_quality()`, `_fetch_and_process_returns()`, `get_historical_returns()`,
+  `get_risk_free_rate()`, `get_ticker_info()`, `get_quote()`, `search_tickers()`,
+  `validate_tickers()`, `get_market_data_service()` DI function
+- `app/schemas/market_data.py` — `HistoricalDataResponse`, `TickerInfoResponse`,
+  `QuoteResponse`, `TickerSearchResult`, `TickerSearchResponse`, `ValidateTickersRequest`,
+  `ValidateTickersResponse`
+- `app/api/v1/market_data.py` — 4 public endpoints: `GET /search`, `GET /{ticker}/history`,
+  `GET /{ticker}/info`, `POST /validate-tickers`
+- `tests/test_market_data.py` — 19 unit tests + 2 integration smoke tests (behind `INTEGRATION_TESTS=1`)
+
+**Files edited:**
+- `app/main.py` — registered `market_data.router` at `/api/v1/market`
+- `requirements-dev.txt` — added `fakeredis==2.26.2`
+- `mypy.ini` — added `[mypy-pandas.*]` and `[mypy-fakeredis.*]` ignore_missing_imports
+
+**Verification:** `ruff check` clean, `ruff format` clean, `mypy app` 0 errors,
+`pytest -q` 39 passed, 2 skipped (integration).
+
+Non-obvious implementation decisions:
+- `_fetch_and_process_returns` is sync (called via `asyncio.to_thread`) — tests mock it
+  directly via `patch.object` rather than mocking `yf.download`, which would require
+  building OHLCV-format mock DataFrames
+- TypeVar T in `_cache_through` correctly flows through `serialize`/`deserialize`
+  even when using stdlib `str`/`float`/`json.loads` as callables
+- redis.asyncio.Redis doesn't support `[bytes]` type arg in redis 5.x stubs — use bare `Redis`
+
+## 2026-06-06 — Phase 2: fix ^TNX math across all docs
+
+Commit: 4c106e7
 
 Corrected the `^TNX` risk-free rate formula across PHASES.md (decision 25),
 HANDOFF.md (both "Known quirks" and "Next up"), and AI_CONTEXT.md. The

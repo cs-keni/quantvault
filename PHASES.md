@@ -81,8 +81,8 @@
 ## Phase 2 — Market Data Service
 > **Architecture locked 2026-06-06 via `/plan-eng-review`.** See decisions 15–27 above.
 
-- [ ] `app/core/redis.py` — `redis_client = redis.asyncio.Redis.from_url(...)` + `get_redis()` DI (mirrors `database.py`, decision 15)
-- [ ] `app/services/market_data_service.py` — `MarketDataService` class:
+- [x] `app/core/redis.py` — `redis_client = redis.asyncio.Redis.from_url(...)` + `get_redis()` DI (mirrors `database.py`, decision 15)
+- [x] `app/services/market_data_service.py` — `MarketDataService` class:
   - `_cache_through(key, ttl, fetch_fn, serialize, deserialize)` private helper (decision 17)
   - `get_historical_returns(tickers, period)` — cache key `qv:mds:returns:{sorted_tickers}:{period}`, TTL 24h; reindex output to requested order (decisions 22–24)
   - `get_risk_free_rate()` — `^TNX` fetch ÷ 100 (Yahoo returns percentage, e.g. 4.21 → 0.0421 — decision 25), cache 24h, fallback `0.04`
@@ -92,14 +92,14 @@
   - All yfinance calls: `asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` (decision 18)
   - Redis/deserialization failures → log warning, fall through to live fetch (decision 19)
   - Empty DataFrame → `ValueError` (decision 20); partial results (dropped tickers) → return data + warning, skip cache write (decision 21)
-- [ ] `app/schemas/market_data.py` — `HistoricalDataResponse`, `QuoteResponse`, `TickerInfoResponse`, `TickerSearchResponse`, `ValidateTickersResponse`
-- [ ] `app/api/v1/market_data.py` — public endpoints (no auth per spec):
+- [x] `app/schemas/market_data.py` — `HistoricalDataResponse`, `QuoteResponse`, `TickerInfoResponse`, `TickerSearchResponse`, `ValidateTickersResponse`
+- [x] `app/api/v1/market_data.py` — public endpoints (no auth per spec):
   - `GET /api/v1/market/search?q=...`
   - `GET /api/v1/market/{ticker}/history`
   - `GET /api/v1/market/{ticker}/info`
-- [ ] Register router in `app/main.py`
-- [ ] `T6 prerequisite (network-blocked):` verify `^TNX` raw value when Yahoo Finance reachable from WSL2; formula confirmed as `raw / 100` via fallback cross-check (decision 25)
-- [ ] `tests/test_market_data.py` — full unit test suite with `fakeredis` (decision 26):
+- [x] Register router in `app/main.py`
+- [ ] `T6 (network-blocked):` verify `^TNX` raw value when Yahoo Finance reachable from WSL2; formula confirmed as `raw / 100` via fallback cross-check (decision 25)
+- [x] `tests/test_market_data.py` — full unit test suite with `fakeredis` (decision 26):
   - Cache hit (yfinance not called), cache miss, correct TTLs per tier
   - Redis failure falls through; corrupt cache falls through
   - Empty DataFrame → 422; partial result NOT cached
@@ -107,11 +107,11 @@
   - Column order matches requested tickers (decision 24)
   - All cache keys start with `qv:mds:` (decision 23)
   - Public endpoints: 200 without auth token
-- [ ] Integration smoke tests (behind `INTEGRATION_TESTS=1`, decision 27): `VTI`, `AAPL`, `BND`, `SPY`, `^TNX`
-- [ ] Data quality: forward-fill gaps ≤5 trading days; drop tickers with >5-day gaps + return warning; never cache partial results
+- [x] Integration smoke tests (behind `INTEGRATION_TESTS=1`, decision 27): `SPY`, `^TNX`
+- [x] Data quality: forward-fill gaps ≤5 trading days; drop tickers with >5-day gaps + return warning; never cache partial results
 - [ ] Run `/review` before marking Phase 2 complete
 
-**QoL:** `/api/v1/market/validate-tickers` batch validation endpoint for the Portfolio Builder UI.
+**QoL:** `/api/v1/market/validate-tickers` batch validation endpoint for the Portfolio Builder UI — ✅ implemented.
 
 **NOT in scope (Phase 2):** Celery offload for fetches (asyncio.to_thread sufficient), rate limiting, input character whitelists, authenticated history endpoints (public per spec), persistent storage of price data.
 

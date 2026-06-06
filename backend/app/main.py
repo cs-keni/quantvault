@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth
+from app.api.v1 import auth, market_data
 from app.core.config import settings
 
 
@@ -26,8 +26,13 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
-    # Remaining routers register here as each api/v1/* module lands (Phase 1+):
-    # from app.api.v1 import portfolios, analysis, simulation, backtest, market_data
+    app.include_router(
+        market_data.router,
+        prefix=f"{settings.API_V1_PREFIX}/market",
+        tags=["market-data"],
+    )
+    # Remaining routers register here as each api/v1/* module lands:
+    # from app.api.v1 import portfolios, analysis, simulation, backtest
 
     return app
 

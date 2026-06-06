@@ -35,4 +35,18 @@ of 409 — now caught and translated).
 
 ## Next
 
-Phase 2 — Market Data Service. **Architecture locked** — all design decisions in `PHASES.md` decisions 15–27, `HANDOFF.md`, and `AI_CONTEXT.md`. Ready to implement T1–T6. First action: verify `^TNX` raw value in dev shell before writing any risk-free-rate code.
+Run `/review` before marking Phase 2 complete (per PHASES.md skill-routing checkpoints).
+Then Phase 3 — Risk and Return Metrics.
+
+**Phase 2 implementation summary:**
+- `app/core/redis.py` — Redis singleton + `get_redis()` DI
+- `app/services/market_data_service.py` — `MarketDataService` with `_cache_through()`,
+  `get_historical_returns()`, `get_risk_free_rate()` (^TNX ÷ 100), `get_ticker_info()`,
+  `get_quote()`, `search_tickers()`, `validate_tickers()`
+- `app/schemas/market_data.py`, `app/api/v1/market_data.py` — 4 public endpoints
+- `tests/test_market_data.py` — 19 unit tests + 2 smoke tests (INTEGRATION_TESTS=1)
+- All gates: ruff clean, mypy clean, 39 tests passing
+
+**T6 (^TNX live verification)** — still open, network-blocked. Formula confirmed as `/ 100`
+via fallback cross-check and `test_rfr_decimal_conversion`. Verify when Yahoo Finance
+is reachable from WSL2.
