@@ -1,4 +1,11 @@
+from typing import Annotated
+
 from pydantic import BaseModel, Field
+
+# Per-item ticker validation: prevents comma/colon injection into Redis cache keys.
+# Allows standard symbols (AAPL, BRK.B, ^TNX, BRK-B) and rejects any character
+# that would corrupt qv:mds: cache key structure.
+_TickerStr = Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.^=\-]{1,20}$")]
 
 
 class HistoricalDataResponse(BaseModel):
@@ -38,7 +45,11 @@ class TickerSearchResponse(BaseModel):
 
 
 class ValidateTickersRequest(BaseModel):
-    tickers: list[str] = Field(min_length=1, max_length=50)
+    tickers: list[_TickerStr] = Field(
+        min_length=1,
+        max_length=50,
+        description="List of 1-50 ticker symbols to validate against Yahoo Finance.",
+    )
 
 
 class ValidateTickersResponse(BaseModel):

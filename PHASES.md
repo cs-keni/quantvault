@@ -109,11 +109,13 @@
   - Public endpoints: 200 without auth token
 - [x] Integration smoke tests (behind `INTEGRATION_TESTS=1`, decision 27): `SPY`, `^TNX`
 - [x] Data quality: forward-fill gaps ≤5 trading days; drop tickers with >5-day gaps + return warning; never cache partial results
-- [ ] Run `/review` before marking Phase 2 complete
+- [x] Run `/review` before marking Phase 2 complete
 
 **QoL:** `/api/v1/market/validate-tickers` batch validation endpoint for the Portfolio Builder UI — ✅ implemented.
 
-**NOT in scope (Phase 2):** Celery offload for fetches (asyncio.to_thread sufficient), rate limiting, input character whitelists, authenticated history endpoints (public per spec), persistent storage of price data.
+**NOT in scope (Phase 2):** Celery offload for fetches (asyncio.to_thread sufficient), rate limiting, authenticated history endpoints (public per spec), persistent storage of price data.
+
+**Added during /review:** Ticker character whitelist (`_TickerStr` + `_TickerPath`, pattern `^[A-Za-z0-9.^=\-]{1,20}$`) — prevents Redis key injection (moved from "NOT in scope" per user approval). 9 additional tests added (MultiIndex format, fence-post NaN, validate_tickers, Redis write failure). Final test count: 48 passed.
 
 ---
 

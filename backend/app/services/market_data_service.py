@@ -1,7 +1,7 @@
 """Market data service: yfinance fetches with Redis caching.
 
 All yfinance calls are sync and blocking; they are wrapped in
-`asyncio.wait_for(asyncio.to_thread(...), timeout=30.0)` so they never
+`asyncio.wait_for(asyncio.to_thread(...), timeout=self._FETCH_TIMEOUT)` so they never
 block the event loop. Cache failures degrade speed, never correctness.
 """
 
@@ -36,6 +36,9 @@ class MarketDataService:
     _INFO_TTL = 604_800  # 7 d
     _QUOTE_TTL = 900  # 15 min
     _MAX_GAP = 5  # max consecutive NaN days before a ticker is dropped
+    _FETCH_TIMEOUT = 30.0  # seconds — caps blocking yfinance calls in asyncio.to_thread
+    _VALIDATE_TIMEOUT = 15.0  # shorter per-ticker timeout for batch validation
+    _SEARCH_MAX_RESULTS = 10
 
     def __init__(self, redis_client: redis.asyncio.Redis) -> None:
         self._redis = redis_client
@@ -66,7 +69,7 @@ class MarketDataService:
         except (redis.RedisError, json.JSONDecodeError, ValueError, UnicodeDecodeError) as exc:
             _logger.warning("cache read failed key=%s: %s", key, exc)
 
-        result: T = await asyncio.wait_for(asyncio.to_thread(fetch_fn), timeout=30.0)
+        result: T = await asyncio.wait_for(asyncio.to_thread(fetch_fn), timeout=self._FETCH_TIMEOUT)
 
         try:
             await self._redis.setex(key, ttl, serialize(result))
@@ -88,6 +91,8 @@ class MarketDataService:
                 continue
             col = returns[ticker]
             is_nan = col.isna()
+            # cumsum of non-NaN flags assigns a group ID per consecutive-NaN run;
+            # .sum().max() gives the length of the longest run.
             max_gap = int(is_nan.groupby((~is_nan).cumsum()).sum().max()) if is_nan.any() else 0
 
             if max_gap > self._MAX_GAP:
@@ -155,11 +160,12 @@ class MarketDataService:
         # --- fetch live ---
         df, dropped = await asyncio.wait_for(
             asyncio.to_thread(self._fetch_and_process_returns, sorted_tickers, period),
-            timeout=30.0,
+            timeout=self._FETCH_TIMEOUT,
         )
 
         if df.empty:
-            raise ValueError(f"No valid historical data for tickers: {tickers}")
+            _logger.warning("no valid historical data for tickers=%s period=%s", tickers, period)
+            raise ValueError("No valid historical data for the requested ticker(s).")
 
         # --- cache only complete results ---
         if not dropped:
@@ -193,15 +199,13 @@ class MarketDataService:
             return 0.04
 
     def _fetch_rfr(self) -> float:
-        try:
-            raw: pd.DataFrame = yf.download("^TNX", period="5d", progress=False, auto_adjust=True)
-            if raw.empty:
-                return 0.04
-            pct_value = float(raw["Close"].iloc[-1])
-            return pct_value / 100
-        except Exception as exc:
-            _logger.warning("^TNX fetch failed: %s; using 0.04", exc)
-            return 0.04
+        raw: pd.DataFrame = yf.download("^TNX", period="5d", progress=False, auto_adjust=True)
+        if raw.empty:
+            raise ValueError("^TNX returned empty DataFrame")
+        close_col = raw["Close"]
+        if isinstance(close_col, pd.DataFrame):
+            close_col = close_col.iloc[:, 0]
+        return float(close_col.iloc[-1]) / 100
 
     async def get_ticker_info(self, ticker: str) -> dict[str, Any]:
         """Fetch company metadata (name, sector, industry, market cap, currency, exchange)."""
@@ -240,6 +244,8 @@ class MarketDataService:
         if raw.empty:
             raise ValueError(f"No quote data for {ticker}")
         prices = raw["Close"]
+        if isinstance(prices, pd.DataFrame):
+            prices = prices.iloc[:, 0]
         last = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) >= 2 else last
         change = last - prev
@@ -255,12 +261,12 @@ class MarketDataService:
         """Search for tickers matching the given query string (not cached — always fresh)."""
         return await asyncio.wait_for(
             asyncio.to_thread(self._fetch_search, query),
-            timeout=30.0,
+            timeout=self._FETCH_TIMEOUT,
         )
 
     def _fetch_search(self, query: str) -> list[dict[str, Any]]:
         try:
-            search = yf.Search(query, max_results=10)
+            search = yf.Search(query, max_results=self._SEARCH_MAX_RESULTS)
             results: list[dict[str, Any]] = []
             for item in search.quotes or []:
                 results.append(
@@ -289,7 +295,10 @@ class MarketDataService:
                 return False
 
         raw_results = await asyncio.gather(
-            *[asyncio.wait_for(asyncio.to_thread(_check, t), timeout=15.0) for t in tickers],
+            *[
+                asyncio.wait_for(asyncio.to_thread(_check, t), timeout=self._VALIDATE_TIMEOUT)
+                for t in tickers
+            ],
             return_exceptions=True,
         )
 

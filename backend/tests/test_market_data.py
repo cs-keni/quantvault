@@ -370,6 +370,149 @@ async def test_history_422_on_empty_data(market_client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Unit tests: MultiIndex column format (yfinance 0.2.51 default multi_level_index=True)
+# ---------------------------------------------------------------------------
+
+
+async def test_rfr_multiindex_column_format(market_service: MarketDataService) -> None:
+    """_fetch_rfr must handle MultiIndex columns returned by yfinance 0.2.51+ by default.
+
+    yfinance 0.2.51 sets multi_level_index=True by default, so all yf.download()
+    calls return MultiIndex columns even for a single ticker. raw["Close"] is then a
+    DataFrame (not a Series), and the isinstance guard must extract the Series via .iloc[:,0].
+    Without this guard, float(DataFrame.iloc[-1]) triggers FutureWarning now and will
+    raise TypeError in a future pandas version.
+    """
+    raw_df = pd.DataFrame(
+        [[4.21], [4.20]],
+        columns=pd.MultiIndex.from_tuples([("Close", "^TNX")]),
+    )
+    with patch("app.services.market_data_service.yf.download", return_value=raw_df):
+        rfr = await market_service.get_risk_free_rate()
+
+    assert rfr == pytest.approx(0.0420, rel=1e-4)
+
+
+async def test_quote_multiindex_column_format(market_service: MarketDataService) -> None:
+    """_fetch_quote must handle MultiIndex columns from yfinance 0.2.51+ default."""
+    raw_df = pd.DataFrame(
+        [[450.0], [451.5]],
+        columns=pd.MultiIndex.from_tuples([("Close", "SPY")]),
+    )
+    with patch("app.services.market_data_service.yf.download", return_value=raw_df):
+        quote = await market_service.get_quote("SPY")
+
+    assert quote["price"] == pytest.approx(451.5, rel=1e-4)
+    assert quote["change"] == pytest.approx(1.5, rel=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: API endpoint edge cases
+# ---------------------------------------------------------------------------
+
+
+async def test_history_422_on_invalid_period(market_client: AsyncClient) -> None:
+    """GET /market/{ticker}/history returns 422 for a period not in _VALID_PERIODS."""
+    resp = await market_client.get("/api/v1/market/SPY/history?period=bogus")
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: data quality boundary
+# ---------------------------------------------------------------------------
+
+
+async def test_data_quality_boundary_exactly_max_gap() -> None:
+    """Ticker with exactly _MAX_GAP=5 consecutive NaN days must be kept and ffilled.
+
+    Fence-post: 5 is the threshold (≤5 kept, >5 dropped). Exactly 5 must survive.
+    """
+    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    dates = pd.date_range("2024-01-01", periods=9, freq="B")
+    returns = pd.DataFrame(
+        {"SPY": [0.01, None, None, None, None, None, 0.02, 0.01, 0.03]},
+        index=dates,
+    )
+    result, dropped = svc._apply_data_quality(returns, ["SPY"])
+    assert "SPY" not in dropped
+    assert result["SPY"].isna().sum() == 0
+
+
+async def test_data_quality_drops_exactly_max_gap_plus_one() -> None:
+    """Ticker with exactly _MAX_GAP+1=6 consecutive NaN days must be dropped."""
+    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    dates = pd.date_range("2024-01-01", periods=10, freq="B")
+    returns = pd.DataFrame(
+        {"SPY": [0.01, None, None, None, None, None, None, 0.02, 0.01, 0.03]},
+        index=dates,
+    )
+    result, dropped = svc._apply_data_quality(returns, ["SPY"])
+    assert "SPY" in dropped
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: validate_tickers service method
+# ---------------------------------------------------------------------------
+
+
+async def test_validate_tickers_all_valid(market_service: MarketDataService) -> None:
+    """All tickers that return data are classified as valid."""
+    non_empty = _make_returns_df(["X"])
+    with patch("app.services.market_data_service.yf.download", return_value=non_empty):
+        valid, invalid = await market_service.validate_tickers(["VTI", "BND"])
+    assert set(valid) == {"VTI", "BND"}
+    assert invalid == []
+
+
+async def test_validate_tickers_all_invalid(market_service: MarketDataService) -> None:
+    """All tickers that return empty DataFrames are classified as invalid."""
+    with patch(
+        "app.services.market_data_service.yf.download",
+        return_value=pd.DataFrame(),
+    ):
+        valid, invalid = await market_service.validate_tickers(["FAKE1", "FAKE2"])
+    assert valid == []
+    assert set(invalid) == {"FAKE1", "FAKE2"}
+
+
+async def test_validate_tickers_exception_treated_as_invalid(
+    market_service: MarketDataService,
+) -> None:
+    """A yfinance exception for a ticker classifies it as invalid (not a 500)."""
+    with patch(
+        "app.services.market_data_service.yf.download",
+        side_effect=Exception("network error"),
+    ):
+        valid, invalid = await market_service.validate_tickers(["SPY"])
+    assert valid == []
+    assert "SPY" in invalid
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: cache write failure
+# ---------------------------------------------------------------------------
+
+
+async def test_redis_write_failure_does_not_propagate(
+    market_service: MarketDataService,
+) -> None:
+    """RedisError on cache setex must not propagate — result is still returned."""
+    import redis as _redis
+
+    broken_redis = AsyncMock()
+    broken_redis.get = AsyncMock(return_value=None)
+    broken_redis.setex = AsyncMock(side_effect=_redis.RedisError("write failed"))
+    market_service._redis = broken_redis
+
+    df = _make_returns_df(["SPY"])
+    with patch.object(MarketDataService, "_fetch_and_process_returns", return_value=(df, [])):
+        result_df, dropped = await market_service.get_historical_returns(["SPY"], "1y")
+
+    assert not result_df.empty
+    assert dropped == []
+
+
+# ---------------------------------------------------------------------------
 # Integration smoke tests (require live Yahoo Finance — gated behind env flag)
 # ---------------------------------------------------------------------------
 

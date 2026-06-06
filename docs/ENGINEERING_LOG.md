@@ -3,6 +3,53 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 2: /review pass fixes
+
+Commit: (this entry)
+
+Manual `/review` pass with specialist subagents (testing, maintainability, security) surfaced
+and fixed the following. All gates still green after fixes (48 passed, 2 skipped).
+
+**AUTO-FIXED:**
+- `_fetch_rfr` and `_fetch_quote`: added `isinstance(close_col, pd.DataFrame)` guard before
+  `float(.iloc[-1])`. yfinance 0.2.51 returns MultiIndex columns by default (`multi_level_index=True`),
+  so `raw["Close"]` is always a DataFrame, making `.iloc[-1]` a Series. `float(Series)` produces
+  a FutureWarning today and will raise TypeError in a future pandas release. Fix uses `.iloc[:, 0]`
+  to reliably extract the Series from either flat or MultiIndex format.
+- Extracted `_FETCH_TIMEOUT = 30.0`, `_VALIDATE_TIMEOUT = 15.0`, `_SEARCH_MAX_RESULTS = 10`
+  as named class constants (30.0 was repeated 4 times inline).
+- Removed double try/except in `_fetch_rfr` — inner `try/except` was redundant; the outer
+  `get_risk_free_rate` catch-all is the single authoritative fallback to 0.04.
+- `get_historical_returns` ValueError no longer leaks the normalized ticker list in the
+  HTTP response body; logged server-side instead.
+- `get_ticker_info` route no longer includes `str(exc)` in 422 detail; internal error
+  logged server-side only.
+- Added comment on the `is_nan.groupby((~is_nan).cumsum()).sum().max()` run-length-encoding
+  one-liner in `_apply_data_quality`.
+- Added `description=` to `ValidateTickersRequest.tickers` Field.
+
+**SECURITY (user-approved):**
+- Added per-item ticker character whitelist (`_TickerStr`, `_TickerPath`) — pattern
+  `^[A-Za-z0-9.^=\\-]{1,20}$` prevents comma/colon injection into Redis cache keys.
+  Without this, a ticker like `"AAPL,MSFT"` (single item) would produce key
+  `qv:mds:returns:AAPL,MSFT:1y`, colliding with Phase 3 portfolio analytics calls
+  for the two-ticker pair. Applied to both `ValidateTickersRequest` items and route
+  `Path()` parameters on `/{ticker}/history` and `/{ticker}/info`.
+
+**TESTS added (9 new, 48 total):**
+- `test_rfr_multiindex_column_format` — exercises the new isinstance guard for ^TNX
+- `test_quote_multiindex_column_format` — exercises the new isinstance guard for quotes
+- `test_history_422_on_invalid_period` — missing negative path for period validation
+- `test_data_quality_boundary_exactly_max_gap` — fence-post: exactly 5 NaNs → kept
+- `test_data_quality_drops_exactly_max_gap_plus_one` — exactly 6 NaNs → dropped
+- `test_validate_tickers_all_valid` / `_all_invalid` / `_exception_treated_as_invalid`
+- `test_redis_write_failure_does_not_propagate` — cache setex error must not surface to caller
+
+**DEFERRED (explicitly NOT in Phase 2 scope per PHASES.md):**
+- Rate limiting on `/validate-tickers` (50 parallel yfinance downloads per request) — PHASES.md
+  "NOT in scope (Phase 2)". Add with Phase 4 API hardening.
+- Redis TLS/auth enforcement — deployment-level concern, not code.
+
 ## 2026-06-06 — Phase 2: full implementation (T1–T5)
 
 Commit: b40d4d2

@@ -1,6 +1,7 @@
+import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.schemas.market_data import (
     HistoricalDataResponse,
@@ -13,10 +14,13 @@ from app.schemas.market_data import (
 from app.services.market_data_service import MarketDataService, get_market_data_service
 
 router = APIRouter()
+_logger = logging.getLogger(__name__)
 
 _MarketDataDep = Annotated[MarketDataService, Depends(get_market_data_service)]
 
 _VALID_PERIODS = {"1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
+# Shared Path constraint for ticker symbols — prevents comma/colon injection into cache keys.
+_TickerPath = Annotated[str, Path(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.^=\-]{1,20}$")]
 
 
 @router.get("/search", response_model=TickerSearchResponse)
@@ -34,7 +38,7 @@ async def search_tickers(
 
 @router.get("/{ticker}/history", response_model=HistoricalDataResponse)
 async def get_ticker_history(
-    ticker: str,
+    ticker: _TickerPath,
     service: _MarketDataDep,
     period: Annotated[str, Query()] = "1y",
 ) -> HistoricalDataResponse:
@@ -69,7 +73,7 @@ async def get_ticker_history(
 
 @router.get("/{ticker}/info", response_model=TickerInfoResponse)
 async def get_ticker_info(
-    ticker: str,
+    ticker: _TickerPath,
     service: _MarketDataDep,
 ) -> TickerInfoResponse:
     """Return company metadata for a ticker (name, sector, industry, market cap, etc.)."""
@@ -77,9 +81,10 @@ async def get_ticker_info(
         info = await service.get_ticker_info(ticker.upper())
         return TickerInfoResponse(**info)
     except Exception as exc:
+        _logger.warning("get_ticker_info failed for ticker=%s: %s", ticker, exc)
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Could not fetch info for '{ticker}': {exc}",
+            detail=f"Could not fetch info for '{ticker}'.",
         ) from exc
 
 
