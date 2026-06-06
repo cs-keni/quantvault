@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-06 — Phase 2: full implementation (T1–T5)
 
-Commit: (this entry)
+Commit: b40d4d2
 
 Implemented Phase 2 (MarketDataService) in full:
 
@@ -54,7 +54,7 @@ T6 (live verification) remains open but unblocked — the formula is settled.
 
 ## 2026-06-06 — Phase 2 planning: architecture locked via /plan-eng-review
 
-Commit: (this entry) — docs: lock Phase 2 architecture decisions in PHASES.md, HANDOFF.md, AI_CONTEXT.md
+Commit: 4c106e7 (docs only) — lock Phase 2 architecture decisions in PHASES.md, HANDOFF.md, AI_CONTEXT.md
 
 Ran `/plan-eng-review` for Phase 2 (MarketDataService). 9 architecture/code-quality/test
 issues surfaced and resolved interactively; Codex outside voice ran and surfaced 5 additional
