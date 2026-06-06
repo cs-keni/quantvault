@@ -5,6 +5,8 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-05 — Phase 0 verification pass (live db + redis)
 
+Commit: `a9e8ec7` — feat: scaffold Phase 0 — backend, frontend, infra, and docs
+
 The scaffold below was written against no running services. This slice brings
 up the real stack (`docker compose up -d db redis`) and runs every Phase 0
 verification gate against it — `make lint`, `make test`, `make migrate`, the
