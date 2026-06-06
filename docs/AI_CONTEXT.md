@@ -60,6 +60,14 @@ for the full list with rationale. The ones that change *how code is written*:
   single Decimal→float conversion point, centralized in `portfolio_service.py`.
 - **`User.default_portfolio_id` FK**, not `Portfolio.is_default bool` — avoids
   a multi-row uniqueness constraint.
+- **Async tests are pinned to the session-scoped event loop** via a
+  `pytest_collection_modifyitems` hook in `tests/conftest.py` (overrides
+  `asyncio_mode = auto`'s per-test `loop_scope="function"` default to match
+  the session-scoped `engine`/`db_session`/`client` fixtures). Don't add
+  per-file `@pytest.mark.asyncio(loop_scope=...)` overrides — any test that
+  issues a real query needs to be on the *same* loop the DB connection's
+  internal primitives were created on, or it raises `RuntimeError: Future
+  ... attached to a different loop`.
 
 ## Data format conventions
 

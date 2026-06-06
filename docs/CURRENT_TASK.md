@@ -1,31 +1,38 @@
 # Current Task
 
-**Phase 0 — Setup and Scaffolding** ✅ complete, verified end-to-end
+**Phase 1 — Domain, Database, and Auth** ✅ complete, verified end-to-end
 
-Scaffolding the repo to match the solution structure in `quantvault.md`:
+Built the domain layer and JWT auth on top of the Phase 0 scaffold:
 
-- [x] Backend: Python 3.12 venv, `requirements.txt`/`requirements-dev.txt`,
-      FastAPI app factory (`main.py`), `core/{config,database,security}.py`,
-      package skeleton (`models/`, `schemas/`, `api/v1/`, `services/`)
-- [x] Alembic wired async-aware to `DATABASE_URL` via `app.core.config.settings`
-- [x] Celery app factory (`celery_app.py`, Redis broker/backend)
-- [x] pytest + ruff + mypy + pre-commit config, async test fixtures, `/health` smoke test
-- [x] Frontend: React 18 + TS + Tailwind via Vite, base structure, design tokens
-- [x] `docker-compose.yml` (5 services) + backend/frontend Dockerfiles
-- [x] `docs/`, `Makefile`, `.env.example`
-- [x] Update `PHASES.md` checkboxes, commit + push scaffold
+- [x] SQLAlchemy ORM models: `User`, `Portfolio`, `Holding`, `BacktestResult`
+      (incl. `AssetClass`/`RebalanceFrequency` native Postgres enums,
+      `User.default_portfolio_id` circular FK via `use_alter`/`post_update`)
+- [x] Alembic initial migration (`30594d39da38`) — creates all 4 tables + enums
+- [x] `portfolio_to_weights()` in `portfolio_service.py` — the single
+      `Decimal` → `float64` conversion point for downstream numpy/scipy math
+- [x] JWT auth (PyJWT): `/auth/register`, `/auth/login`, `/auth/refresh`,
+      `app/dependencies.py::get_current_user`
+- [x] Unit tests for auth flows — 19 tests covering register/login/refresh/
+      `get_current_user`, incl. expired/malformed/wrong-type/deactivated/
+      unknown-user edge cases (full suite: 20 passed)
+- [x] Seed script (`make seed`) — idempotent demo user + three-fund portfolio
+      (VTI 60% / BND 30% / VXUS 10%, weights sum to 1.0 exactly)
+- [x] Manual `/review` pass (see `ENGINEERING_LOG.md` for findings + fixes)
 
-**Verified live** (db + redis up via `docker compose up -d db redis`):
-- `make lint` (ruff + mypy) — clean
-- `make test` (pytest against a real Postgres `quantvault_test` db) — passes
-- `make migrate` (`alembic upgrade head`) — runs cleanly against live db
-- `celery -A app.celery_app worker` — connects to Redis, no warnings
-- `pre-commit run` — all hooks pass on first install
-- Frontend dev server (`npm run dev`) — renders DashboardPage with design tokens + animation
+**Verified live**:
+- `ruff check`/`ruff format` — clean
+- `mypy app` — clean (23 source files)
+- `pytest` (full suite) — 20 passed
+- `alembic check` — no diff detected
+- `make seed` — creates demo data end-to-end against the dev DB; idempotent on re-run
 
-**Deferred to Phase 1** (need `User`/`Portfolio`/`Holding` models, which don't
-exist yet): `app/dependencies.py` (`get_current_user`), seed script.
+**Fixed along the way** (see `ENGINEERING_LOG.md` 2026-06-06 for full root-cause
+write-ups): a latent pytest-asyncio event-loop mismatch in the Phase 0
+`conftest.py` (fixtures vs. test functions on different loops), a dev-DB
+schema/`alembic_version` desync, and a `register` race condition surfaced
+during manual review (concurrent duplicate signups raised a raw 500 instead
+of 409 — now caught and translated).
 
 ## Next
 
-Phase 1 — Domain, Database, and Auth (see `PHASES.md`).
+Phase 2 — Market Data Service (see `PHASES.md`).

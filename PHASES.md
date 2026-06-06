@@ -46,22 +46,22 @@
 
 ---
 
-## Phase 1 — Domain, Database, and Auth
-- [ ] Define SQLAlchemy ORM models: `User`, `Portfolio`, `Holding`, `BacktestResult`
+## Phase 1 — Domain, Database, and Auth ✅ complete (2026-06-06)
+- [x] Define SQLAlchemy ORM models: `User`, `Portfolio`, `Holding`, `BacktestResult`
   - `User.default_portfolio_id` FK (not `Portfolio.is_default bool`)
   - `Portfolio.benchmark_ticker: str` default `"SPY"`
   - `Holding.target_weight: Decimal` with sum-to-1 constraint enforced at service layer
   - `BacktestResult.tearsheet: dict` JSONB column
-- [ ] Write Alembic initial migration
-- [ ] Implement `portfolio_to_weights(holdings) -> tuple[list[str], np.ndarray]` in `portfolio_service.py`
-- [ ] Implement JWT auth with **PyJWT** (not python-jose)
+- [x] Write Alembic initial migration
+- [x] Implement `portfolio_to_weights(holdings) -> tuple[list[str], np.ndarray]` in `portfolio_service.py`
+- [x] Implement JWT auth with **PyJWT** (not python-jose)
   - `POST /api/v1/auth/register`
   - `POST /api/v1/auth/login`
   - `POST /api/v1/auth/refresh`
-- [ ] Write unit tests for auth flows (register, login, refresh, expired token, invalid token)
-- [ ] Run `/review` before marking Phase 1 complete
+- [x] Write unit tests for auth flows (register, login, refresh, expired token, invalid token)
+- [x] Run `/review` before marking Phase 1 complete
 
-**QoL:** Seed script with demo user + demo portfolio (VTI 60% / BND 30% / VXUS 10%).
+**QoL:** Seed script with demo user + demo portfolio (VTI 60% / BND 30% / VXUS 10%). ✅ done
 
 ---
 

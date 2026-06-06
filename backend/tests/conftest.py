@@ -16,6 +16,24 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Pin every async test to the same session-scoped loop as the DB fixtures.
+
+    `engine` builds the schema once per run — its `loop_scope` is "session"
+    (via `asyncio_default_fixture_loop_scope` below), and `db_session`/`client`
+    reuse its pooled connections. `asyncio_mode = auto` marks test functions
+    `loop_scope="function"` by default, which would run them on a *different*
+    loop than the one that created those connections' internal locks/futures,
+    raising "Future ... attached to a different loop" the moment a test issues
+    a real query. Replacing the auto-applied marker with one pinned to
+    "session" keeps tests and fixtures on the same loop.
+    """
+    session_asyncio = pytest.mark.asyncio(loop_scope="session")
+    for item in items:
+        item.own_markers = [m for m in item.own_markers if m.name != "asyncio"]
+        item.add_marker(session_asyncio)
+
+
 @pytest.fixture(scope="session")
 async def engine() -> AsyncGenerator:
     """Session-scoped engine; creates all tables once and drops them on teardown."""

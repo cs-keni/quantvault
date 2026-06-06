@@ -5,6 +5,39 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-06 (Phase 1 — Domain, Database, and Auth complete & verified)
+
+Domain layer + JWT auth are live on top of the Phase 0 scaffold:
+
+- **Models** (`app/models/{user,portfolio,holding,backtest_result}.py`):
+  `User`/`Portfolio`/`Holding`/`BacktestResult`, plus `AssetClass` and
+  `RebalanceFrequency` native Postgres enums. `User.default_portfolio_id` is
+  a circular FK to `portfolios.id` — modeled with `use_alter=True` +
+  `relationship(..., post_update=True)` to break the insert cycle (the
+  Alembic migration adds it as a separate `op.create_foreign_key` after both
+  tables exist; see the migration's comment for why autogenerate can't do
+  this inline).
+- **Auth** (`app/api/v1/auth.py`, `app/dependencies.py`): PyJWT-based
+  register/login/refresh. `CurrentUser = Annotated[User, Depends(get_current_user)]`
+  is the auth boundary every future protected route depends on — all its
+  failure modes (missing/malformed/expired/wrong-type token, unknown user,
+  deactivated account) collapse to the same 401 to prevent enumeration.
+- **`portfolio_to_weights()`** (`app/services/portfolio_service.py`): the
+  single `Decimal` → `float64` conversion point for downstream numpy/scipy
+  math (locked architecture decision #8) — never convert weights anywhere
+  else.
+- **Seed script** (`make seed` → `app/scripts/seed.py`): idempotent (looks
+  up by email, short-circuits if found) — creates `demo@quantvault.dev` /
+  `quantvault-demo` with a three-fund portfolio (VTI 60% / BND 30% / VXUS 10%).
+
+See `ENGINEERING_LOG.md` 2026-06-06 for the three bugs this phase surfaced
+and fixed: a latent pytest-asyncio event-loop mismatch (now fixed globally
+via a `pytest_collection_modifyitems` hook in `conftest.py` — every future
+async test file benefits automatically, no per-file marker needed), a dev-DB
+schema/`alembic_version` desync, and a `register` race condition caught
+during manual `/review` (concurrent duplicate signups raised a raw 500
+instead of 409 — now caught via `IntegrityError` and translated).
+
 ## State as of 2026-06-05 (Phase 0 — Scaffold complete & verified)
 
 Architecture is locked (`/plan-eng-review` complete, 14 decisions recorded in
@@ -61,6 +94,23 @@ would mean importing nonexistent modules (dangling imports that break mypy).
   `pytest.ini` — required because `tests/conftest.py`'s `engine` fixture is
   session-scoped and async; pytest-asyncio raises `ScopeMismatch` if the
   default fixture loop is narrower than the fixtures that need it.
+- **`conftest.py`'s `pytest_collection_modifyitems` hook** re-pins every test
+  function from `asyncio_mode = auto`'s default `loop_scope="function"` to
+  `loop_scope="session"`, matching the DB fixtures. Without it, any test that
+  actually issues a query (not just resolves the `db` dependency) raises
+  `RuntimeError: Future ... attached to a different loop` — `test_health.py`
+  never tripped this because its handler never touches `db`. Don't remove
+  this hook or add per-file `@pytest.mark.asyncio(...)` overrides; it's
+  intentionally global.
+- **`hash_password`/`verify_password`** (bcrypt via passlib, ~100–300ms by
+  design) run synchronously inside `async def register`/`login` — blocks the
+  event loop for that duration. Fine at demo traffic; wrap in
+  `asyncio.to_thread()` before this needs to handle real concurrent load.
+- **`_get_user_by_email`** intentionally does *not* filter by `is_active` —
+  both call sites need the full row (`register`'s duplicate-check must also
+  catch deactivated emails; `login` needs the row to verify the password
+  before checking `is_active` separately, so it can return 403 instead of
+  401 for deactivated accounts).
 - **venv note**: this WSL box can't `apt install python3.12-venv` (needs sudo
   password), so `backend/.venv` was created with `virtualenv` instead of the
   stdlib `venv` module. Functionally identical — and once
@@ -70,8 +120,8 @@ would mean importing nonexistent modules (dangling imports that break mypy).
 
 ## Next up
 
-Phase 1 — Domain, Database, and Auth: SQLAlchemy models (`User`, `Portfolio`,
-`Holding`, `BacktestResult`), Alembic initial migration,
-`portfolio_to_weights()`, JWT auth endpoints + `app/dependencies.py`
-(`get_current_user`), auth tests, and the seed script (demo user + VTI 60% /
-BND 30% / VXUS 10% portfolio). Run `/review` before marking Phase 1 complete.
+Phase 2 — Market Data Service: `MarketDataService` (yfinance wrapper with
+async Redis caching for historical prices/quotes/metadata), `^TNX`
+risk-free-rate fetch (divide by 10, fall back to `0.04`), ticker search +
+historical price/returns endpoints, and data-quality handling (forward-fill
+gaps up to 5 days, then drop the ticker with a warning). See `PHASES.md`.
