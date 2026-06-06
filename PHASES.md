@@ -33,16 +33,16 @@
 - [x] Register gbrain (Supabase engine, session pooler mode)
 - [x] Sync gbrain — `.gbrain-source` pin: `gstack-code-quantvault-ddd199b6`
 - [x] Run `/plan-eng-review` — architecture locked, all 14 decisions recorded
-- [ ] Initialize FastAPI project structure (backend/ folder)
-- [ ] Initialize React + TypeScript project (frontend/ folder)
-- [ ] Set up PostgreSQL + Redis with Docker Compose
-- [ ] Configure Alembic for migrations
-- [ ] Set up pytest + ruff + mypy + pre-commit hooks
-- [ ] Set up Celery worker service in Docker Compose
-- [ ] Create docs/: `AI_CONTEXT.md`, `HANDOFF.md`, `ENGINEERING_LOG.md`, `CURRENT_TASK.md`
-- [ ] Push initial scaffold commit
+- [x] Initialize FastAPI project structure (backend/ folder)
+- [x] Initialize React + TypeScript project (frontend/ folder)
+- [x] Set up PostgreSQL + Redis with Docker Compose
+- [x] Configure Alembic for migrations
+- [x] Set up pytest + ruff + mypy + pre-commit hooks
+- [x] Set up Celery worker service in Docker Compose
+- [x] Create docs/: `AI_CONTEXT.md`, `HANDOFF.md`, `ENGINEERING_LOG.md`, `CURRENT_TASK.md`
+- [x] Push initial scaffold commit
 
-**QoL:** `.env.example` with all required vars documented, `Makefile` with `make dev`, `make test`, `make lint` targets.
+**QoL:** `.env.example` with all required vars documented, `Makefile` with `make dev`, `make test`, `make lint` targets. — done
 
 ---
 

@@ -31,5 +31,8 @@ node_modules/
 *.swo
 .DS_Store
 
+# Claude Code session state (scheduled-task locks, not project source)
+.claude/
+
 # gbrain indexed source cache
 .sources/

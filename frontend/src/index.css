@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+/* Locked design tokens — see docs/AI_CONTEXT.md "Design tokens (locked)". */
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-accent: #6366f1;
+  --color-positive: #10b981;
+  --color-negative: #ef4444;
+  --color-ink: #0f172a;
+}
+
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+}
