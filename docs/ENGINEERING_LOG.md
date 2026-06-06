@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-06 — Phase 1: Domain, Database, and Auth
 
-Commit: `<pending>` — feat: add Phase 1 domain models, JWT auth, and seed script
+Commit: `4c5e0c4` — feat: add Phase 1 domain models, JWT auth, and seed script
 
 Built the domain layer (`User`/`Portfolio`/`Holding`/`BacktestResult` ORM
 models + initial Alembic migration), `portfolio_to_weights()`, JWT auth
