@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7e complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7f complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7e analysis page are implemented and verified; Phase 7f Monte Carlo page is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7f Monte Carlo page are implemented and verified; Phase 7g Backtest page is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -80,11 +80,23 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
 - `cd frontend && npm run lint` — clean
 
-**Next implementation slice: Phase 7f Monte Carlo Page**
-- Build `/portfolios/:id/simulate`.
-- Form inputs: years, n_simulations, initial_investment, annual_contribution.
-- POST `/simulation/monte-carlo`, then poll `GET /simulation/:id` until SUCCESS/FAILURE.
-- Chart sampled paths and percentile bands.
+**Implemented in Phase 7f:**
+- `frontend/src/pages/MonteCarloPage.tsx` — simulation route.
+- Loads portfolio holdings, submits `POST /simulation/monte-carlo`, and polls `GET /simulation/:id` until terminal status.
+- Inputs: years, n_simulations, initial_investment, annual_contribution.
+- Charts 20 sampled paths plus derived percentile lines and initial investment reference.
+- Renders mean final value, P5/P50/P95, probability of profit, and probability of doubling.
+- `frontend/src/types/api.ts` — simulation response types.
+
+**Verification after Phase 7f:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
+- `cd frontend && npm run lint` — clean
+
+**Next implementation slice: Phase 7g Backtest Page**
+- Build `/portfolios/:id/backtest`.
+- Form inputs: start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker.
+- POST `/portfolios/:id/backtests`, poll `GET /portfolios/:id/backtests/:backtest_id`, render equity curve and tearsheet cards.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)

@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7e complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7f complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7f Monte Carlo page is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7g Backtest page is next.
 
 ---
 
@@ -215,12 +215,27 @@ Efficient Frontier polling pattern (critical — read carefully):
 
 ---
 
-## Phase 7f — Monte Carlo (`/portfolios/:id/simulate`)
+## Phase 7f — Monte Carlo (`/portfolios/:id/simulate`) ✅ complete
 
-- Form: years, n_simulations, initial_investment, annual_contribution (optional)
-- POST /simulation/monte-carlo → poll GET /simulation/:id until SUCCESS/FAILURE
-- Chart: 20 sampled paths (light gray, low opacity), P5/P25/P50/P75/P95 percentile bands, initial investment reference line (dashed)
-- Loading skeleton while task runs; FAILURE → error with retry
+Completed 2026-06-07.
+
+- Added `MonteCarloPage` and wired `/portfolios/:id/simulate`.
+- Loads portfolio holdings from `GET /portfolios/:id`.
+- Form inputs: years, n_simulations, initial_investment, annual_contribution.
+- Submits `POST /simulation/monte-carlo` with portfolio_id, tickers, weights, period `1y`, and form values.
+- Polls `GET /simulation/:id` until `SUCCESS` or `FAILURE`.
+- Shows outcome cards: mean final value, P5/P50/P95, probability of profit, probability of doubling.
+- Charts 20 sampled paths plus derived P5/P25/P50/P75/P95 lines and initial investment reference line.
+
+Verification:
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed; Vite still warns main bundle >500 kB
+- `cd frontend && npm run lint` — passed
+
+- [x] Form: years, n_simulations, initial_investment, annual_contribution (optional)
+- [x] POST /simulation/monte-carlo → poll GET /simulation/:id until SUCCESS/FAILURE
+- [x] Chart: 20 sampled paths (light gray, low opacity), P5/P25/P50/P75/P95 percentile lines, initial investment reference line (dashed)
+- [x] Loading/empty state while task runs; FAILURE → error display
 
 ---
 

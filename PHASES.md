@@ -480,9 +480,9 @@
 - [x] Risk metrics cards (reuse from Dashboard)
 
 **Phase 7f — Monte Carlo Page**
-- [ ] MonteCarloPage (`/portfolios/:id/simulate`): form (years, simulations, initial_investment, annual_contribution), POST /simulation/monte-carlo, poll GET /simulation/:id
-- [ ] Chart: 20 sampled paths (light gray), P5/P25/P50/P75/P95 bands, initial investment reference line
-- [ ] Loading skeleton while task runs; error state on FAILURE
+- [x] MonteCarloPage (`/portfolios/:id/simulate`): form (years, simulations, initial_investment, annual_contribution), POST /simulation/monte-carlo, poll GET /simulation/:id
+- [x] Chart: 20 sampled paths (light gray), P5/P25/P50/P75/P95 lines, initial investment reference line
+- [x] Loading/empty state while task runs; error state on FAILURE
 
 **Phase 7g — Backtest Page**
 - [ ] BacktestPage (`/portfolios/:id/backtest`): form (start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker), POST /portfolios/:id/backtests, poll GET /portfolios/:id/backtests/:backtest_id

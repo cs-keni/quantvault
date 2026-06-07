@@ -3,6 +3,24 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7f: Monte Carlo Page implemented
+
+Implemented the locked Phase 7f Monte Carlo page.
+
+**Changed:**
+- Added `MonteCarloPage` and wired `/portfolios/:id/simulate`.
+- Loads portfolio holdings and submits `POST /simulation/monte-carlo` with `portfolio_id`, tickers, weights, period, and user inputs.
+- Polls `GET /simulation/:id` until SUCCESS/FAILURE.
+- Renders outcome cards and a Recharts line chart with 20 sampled paths, derived P5/P25/P50/P75/P95 lines, and a dashed initial investment reference.
+- Added frontend simulation response types.
+
+**Checks:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+
+**Build note:** Vite still warns the main JS chunk is >500 kB due to Recharts in the main route bundle.
+
 ## 2026-06-07 — Phase 7e: Analysis Page implemented
 
 Implemented the locked Phase 7e analysis page.

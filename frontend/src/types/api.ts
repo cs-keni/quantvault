@@ -97,3 +97,29 @@ export interface FrontierTaskStatus {
   result: FrontierResult | null;
   error: string | null;
 }
+
+export interface SimulationResponse {
+  percentile_outcomes: Record<string, number>;
+  sample_paths: number[][];
+  mean_final_value: number;
+  probability_of_profit: number;
+  probability_of_doubling: number;
+  final_value_distribution: number[];
+  initial_investment: number;
+  years: number;
+  n_simulations: number;
+  annual_contribution: number;
+}
+
+export interface SimulationSubmitResponse {
+  simulation_id: string;
+  task_id: string;
+  status: string;
+}
+
+export interface SimulationStatusResponse {
+  simulation_id: string;
+  status: string;
+  result: SimulationResponse | null;
+  error: string | null;
+}
