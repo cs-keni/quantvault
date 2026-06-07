@@ -1,17 +1,22 @@
 # Current Task
 
-**Phase 4 — Efficient Frontier** 🔄 ready to implement
+**Phase 4 — Efficient Frontier** 🔄 implemented, pending `/review`
 
-`/plan-eng-review` completed 2026-06-06. Architecture locked in PHASES.md decisions 28–38. All implementation tasks defined. See PHASES.md Phase 4 section for the full spec.
+Implementation completed 2026-06-07. Architecture locked in PHASES.md decisions 28–38 was followed.
 
-**Implement in this order:**
-1. `backend/app/schemas/portfolio.py` — add `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse`
-2. `backend/app/services/optimization_service.py` (NEW) — `find_min_variance_portfolio`, `find_max_sharpe_portfolio`, `generate_efficient_frontier`, `@celery_app.task compute_frontier`
-3. `backend/app/celery_app.py` — uncomment `"app.services.optimization_service"` in the include list
-4. `backend/app/api/v1/analysis.py` — add `POST /analysis/frontier` and `GET /analysis/frontier/{task_id}`
-5. `backend/tests/test_efficient_frontier.py` (NEW) — math unit tests + API integration tests
+**Implemented:**
+- `backend/app/schemas/portfolio.py` — `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse`
+- `backend/app/services/optimization_service.py` — min-variance, max-Sharpe, efficient frontier generation, Redis cache helpers, `compute_frontier` Celery task
+- `backend/app/celery_app.py` — registered `app.services.optimization_service`
+- `backend/app/api/v1/analysis.py` — `POST /analysis/frontier` and `GET /analysis/frontier/{task_id}` with auth, cache hit, async submit, and non-blocking poll
+- `backend/tests/test_efficient_frontier.py` — deterministic math tests plus API auth/validation/task-failure tests
 
 **Run `/review` before marking Phase 4 complete** (financial math phase, non-negotiable).
+
+**Latest checks:**
+- `cd backend && .venv/bin/ruff check app tests` — clean
+- `cd backend && .venv/bin/mypy app` — clean (32 source files)
+- `cd backend && .venv/bin/pytest -q` — 113 passed, 2 skipped (live-network market data tests)
 
 ### Key implementation rules (all locked — do not re-debate):
 - Celery task: call `market_data_service._fetch_and_process_returns(sorted_tickers, period)` directly (sync); use `redis.Redis.from_url(settings.REDIS_URL)` (sync — NOT redis.asyncio). There is no FastAPI DI in Celery workers.

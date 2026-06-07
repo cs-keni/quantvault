@@ -53,17 +53,20 @@ for the full list with rationale. The ones that change *how code is written*:
   forward (the spec's `cumprod` add-to-all approach was financially wrong).
 - **CVaR guard**: `var_index = max(int((1 - confidence) * N), 1)` prevents an
   empty-slice → NaN on small samples or high confidence levels.
-- **Efficient frontier (Phase 4 — ready to implement)**: `optimization_service.py`
-  owns all MPT math. Celery task `compute_frontier` in the same file; calls
-  `_fetch_and_process_returns()` directly (sync) + `redis.Redis` (sync — **no
-  async DI in Celery workers**). Optimizer target-return constraint uses
-  **arithmetic** daily mean returns (`w.T @ mu_arith >= target`, linear in
-  weights); output `FrontierPoint.annual_return` is **geometric**
-  `(1+mean_daily)^252 - 1`. Task: `soft_time_limit=55, time_limit=60` (yfinance
-  can take up to 30s). `AsyncResult.info` on FAILURE is a raw Python exception —
-  **must `str()` it** before including in JSON response. Cache key:
-  `qv:opt:frontier:{sorted_uppercase_tickers}:{period}`, 24h TTL. See PHASES.md
-  decisions 28–38 for full rationale.
+- **Efficient frontier (Phase 4 — implemented, pending `/review`)**:
+  `optimization_service.py` owns all MPT math and the Celery task
+  `compute_frontier`. The task calls `_fetch_and_process_returns()` directly
+  (sync) + `redis.Redis` (sync — **no async DI in Celery workers**). Optimizer
+  target-return constraint uses **arithmetic** daily mean returns
+  (`w.T @ mu_arith >= target`, linear in weights); output
+  `FrontierPoint.annual_return` is **geometric** `(1+mean_daily)^252 - 1`.
+  Task timeout is `soft_time_limit=55, time_limit=60`. Cache key:
+  `qv:opt:frontier:{sorted_uppercase_tickers}:{period}`, 24h TTL. API routes:
+  authenticated `POST /api/v1/analysis/frontier` (cache hit returns
+  `SUCCESS` with `task_id=null`; cache miss dispatches Celery) and authenticated
+  `GET /api/v1/analysis/frontier/{task_id}` (non-blocking state poll; FAILURE
+  must return `error=str(result.info)`). See PHASES.md decisions 28–38 for full
+  rationale.
 - **`portfolio_to_weights(holdings) -> tuple[list[str], np.ndarray]`** is the
   single Decimal→float conversion point, centralized in `portfolio_service.py`.
 - **`User.default_portfolio_id` FK**, not `Portfolio.is_default bool` — avoids

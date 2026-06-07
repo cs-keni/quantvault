@@ -3,6 +3,37 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 4: Efficient Frontier implementation
+
+Commit: this implementation commit
+
+Implemented Phase 4 efficient frontier code, following PHASES.md decisions 28–38. Phase 4 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
+
+**Files changed:**
+- `app/schemas/portfolio.py` — added `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse`
+- `app/services/optimization_service.py` — new Markowitz optimizer service + Redis cache helpers + `compute_frontier` Celery task
+- `app/celery_app.py` — registered optimization task module
+- `app/api/v1/analysis.py` — added authenticated submit/poll endpoints for frontier tasks
+- `tests/test_efficient_frontier.py` — added deterministic math tests and API auth/validation/task-failure tests
+- `mypy.ini` — ignored missing SciPy stubs, matching existing yfinance/pandas stub policy
+
+**Implementation details:**
+- Optimizer solves min-variance first and uses its arithmetic annual return as the lower target bound.
+- Frontier target constraints use arithmetic annual return (`252 * w.T @ mu_daily`); API `annual_return` reports geometric annual return.
+- SLSQP runs sequentially with warm starts; individual target failures are skipped for partial frontier output.
+- `find_max_sharpe_portfolio` uses arithmetic expected return in the Sharpe objective and guards near-zero volatility.
+- `POST /analysis/frontier` checks Redis before dispatching Celery; cache hit returns `SUCCESS` with `task_id=null`.
+- `GET /analysis/frontier/{task_id}` reads Celery state/info without `.get()` and stringifies raw failure exceptions.
+- Celery task uses sync Redis and sync market-data private methods; risk-free-rate fetch falls back to `0.04`.
+
+**Tests / checks:**
+- `cd backend && .venv/bin/ruff check app tests` — clean
+- `cd backend && .venv/bin/mypy app` — clean (32 source files)
+- `cd backend && .venv/bin/pytest -q` — 113 passed, 2 skipped (live-network market-data tests)
+
+**Gotcha found:**
+- The restricted Codex sandbox cannot reach Docker-published localhost ports, so DB-backed pytest runs must execute with sandbox escalation. The new frontier API tests avoid the DB fixture because these endpoints can validate auth/422/task failure hermetically via FastAPI dependency overrides.
+
 ## 2026-06-06 — Phase 4: /plan-eng-review complete, architecture locked
 
 Commit: (planning session — no code committed yet)

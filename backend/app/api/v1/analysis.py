@@ -7,26 +7,60 @@ from typing import Annotated
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import redis.asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.celery_app import celery_app
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.dependencies import CurrentUser
 from app.schemas.portfolio import (
     CorrelationMatrix,
+    FrontierRequest,
+    FrontierResult,
+    FrontierSubmitResponse,
+    FrontierTaskStatus,
     MetricsRequest,
     PortfolioMetricsResponse,
 )
 from app.services import portfolio_service, risk_service
 from app.services.market_data_service import MarketDataService, get_market_data_service
+from app.services.optimization_service import (
+    build_frontier_cache_key,
+    compute_frontier,
+    deserialize_frontier_result,
+)
 
 router = APIRouter()
 _logger = logging.getLogger(__name__)
 
 _DBDep = Annotated[AsyncSession, Depends(get_db)]
 _MarketDep = Annotated[MarketDataService, Depends(get_market_data_service)]
+_RedisDep = Annotated[redis.asyncio.Redis, Depends(get_redis)]
 
 _VALID_PERIODS = {"1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
+
+
+async def _get_cached_frontier(
+    redis_client: redis.asyncio.Redis,
+    tickers: list[str],
+    period: str,
+) -> FrontierResult | None:
+    cache_key = build_frontier_cache_key(tickers, period)
+    try:
+        cached = await redis_client.get(cache_key)
+    except redis.RedisError as exc:
+        _logger.warning("frontier cache read failed key=%s: %s", cache_key, exc)
+        return None
+
+    if cached is None:
+        return None
+    try:
+        return deserialize_frontier_result(cached)
+    except ValueError as exc:
+        _logger.warning("frontier cache deserialization failed key=%s: %s", cache_key, exc)
+        return None
 
 
 async def _compute_metrics(
@@ -177,3 +211,39 @@ async def compute_metrics_for_portfolio(
         benchmark_ticker=portfolio.benchmark_ticker,
         market_service=market_service,
     )
+
+
+@router.post("/frontier", response_model=FrontierSubmitResponse)
+async def submit_frontier(
+    payload: FrontierRequest,
+    current_user: CurrentUser,
+    redis_client: _RedisDep,
+) -> FrontierSubmitResponse:
+    """Submit an efficient-frontier computation or return a cached result."""
+    cached = await _get_cached_frontier(redis_client, payload.tickers, payload.period)
+    if cached is not None:
+        return FrontierSubmitResponse(status="SUCCESS", result=cached)
+
+    task = compute_frontier.delay(payload.tickers, payload.period)
+    return FrontierSubmitResponse(task_id=task.id, status="PENDING")
+
+
+@router.get("/frontier/{task_id}", response_model=FrontierTaskStatus)
+async def get_frontier_status(
+    task_id: str,
+    current_user: CurrentUser,
+) -> FrontierTaskStatus:
+    """Poll efficient-frontier task state without blocking on task completion."""
+    result = celery_app.AsyncResult(task_id)
+    state = str(result.state)
+
+    if state == "SUCCESS":
+        return FrontierTaskStatus(
+            task_id=task_id,
+            status=state,
+            result=FrontierResult.model_validate(result.info),
+        )
+    if state == "FAILURE":
+        return FrontierTaskStatus(task_id=task_id, status=state, error=str(result.info))
+
+    return FrontierTaskStatus(task_id=task_id, status=state)

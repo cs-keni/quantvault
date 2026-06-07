@@ -8,7 +8,7 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         # Task modules are registered here as each lands:
-        # "app.services.optimization_service",  — efficient frontier (Phase 4)
+        "app.services.optimization_service",
         # "app.services.simulation_service",     — Monte Carlo (Phase 5)
         # "app.services.backtest_service",       — backtesting engine (Phase 6)
     ],

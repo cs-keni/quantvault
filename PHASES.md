@@ -158,9 +158,9 @@
 > **`/plan-eng-review` completed 2026-06-06** — architecture locked in decisions 28–38 above.
 > Run `/review` before marking Phase 4 complete (financial math phase, non-negotiable).
 
-- [ ] Add schemas: `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse` in `schemas/portfolio.py`
+- [x] Add schemas: `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse` in `schemas/portfolio.py`
   - `FrontierRequest.tickers`: max 30, uppercase normalize, pattern `^[A-Za-z0-9.^=\-]{1,20}$`, dedup after normalization
-- [ ] Implement `optimization_service.py` (pure math + Celery task):
+- [x] Implement `optimization_service.py` (pure math + Celery task):
   - `find_min_variance_portfolio(returns_df) -> (weights, ann_return_arith, ann_vol)` — no rfr arg (decision 33)
   - `find_max_sharpe_portfolio(returns_df, rfr) -> (weights, ann_return_arith, ann_vol, sharpe)` — guard if vol < 1e-8
   - `generate_efficient_frontier(returns_df, rfr, n_points=100) -> list[FrontierPoint]`
@@ -175,11 +175,11 @@
     - Cache read/write via `redis.Redis.from_url(settings.REDIS_URL)` (sync) (decision 32)
     - Cache key: `qv:opt:frontier:{sorted(uppercase_tickers)}:{period}`, 24h TTL (decision 29)
     - Catch `SoftTimeLimitExceeded`, store as clean FAILURE
-- [ ] Update `celery_app.py` — uncomment `"app.services.optimization_service"` include (decision 28)
-- [ ] Add endpoints to `api/v1/analysis.py`:
+- [x] Update `celery_app.py` — uncomment `"app.services.optimization_service"` include (decision 28)
+- [x] Add endpoints to `api/v1/analysis.py`:
   - `POST /api/v1/analysis/frontier` — `CurrentUser` required (decision 36); validate request; cache hit → return `FrontierSubmitResponse(status="SUCCESS", result=...)` immediately; cache miss → dispatch task, return `FrontierSubmitResponse(task_id=..., status="PENDING")`
   - `GET /api/v1/analysis/frontier/{task_id}` — `CurrentUser` required; non-blocking `AsyncResult.state/.info`; serialize `.info` to `str()` on FAILURE (decision 34/35)
-- [ ] Write `tests/test_efficient_frontier.py`:
+- [x] Write `tests/test_efficient_frontier.py`:
   - **Math unit tests (deterministic fixtures, no live data):**
     - `weights sum to 1.0 ± 1e-6` on every frontier point
     - `all weights ≥ 0` on every point

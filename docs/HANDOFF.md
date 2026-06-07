@@ -5,6 +5,29 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-07 (Phase 4 — Efficient Frontier implemented, pending `/review`)
+
+Phase 4 code is implemented and verified, but the required financial-math `/review` checkpoint has **not** been run yet, so do not mark Phase 4 complete until that review passes.
+
+**Implemented files:**
+- `app/schemas/portfolio.py` — frontier request/result/task schemas. `FrontierRequest.tickers` uppercases before duplicate detection and enforces 2–30 tickers with the Phase 2 ticker pattern.
+- `app/services/optimization_service.py` — Markowitz MPT math, Redis cache helpers, and `compute_frontier` Celery task.
+- `app/celery_app.py` — includes `app.services.optimization_service`.
+- `app/api/v1/analysis.py` — authenticated `POST /api/v1/analysis/frontier` and `GET /api/v1/analysis/frontier/{task_id}`.
+- `tests/test_efficient_frontier.py` — deterministic optimizer tests and hermetic API auth/validation/task-failure tests.
+
+**Verification after implementation:**
+- `cd backend && .venv/bin/ruff check app tests` — clean
+- `cd backend && .venv/bin/mypy app` — clean (32 source files)
+- `cd backend && .venv/bin/pytest -q` — 113 passed, 2 skipped (live-network market-data tests)
+
+**Important implementation notes:**
+- API POST checks Redis cache first; cache hit returns `status="SUCCESS"` with `task_id=null`, cache miss dispatches Celery and returns `PENDING`.
+- Celery task uses sync Redis plus sync `MarketDataService._fetch_and_process_returns()` and falls back to `0.04` if sync `^TNX` fetch fails.
+- Frontier optimizer uses arithmetic annual return for constraints and Sharpe objective; `FrontierPoint.annual_return` reports geometric annual return.
+- GET failure state returns `error=str(result.info)` so raw exception objects never hit FastAPI JSON encoding.
+- API tests intentionally avoid the DB fixture for frontier auth/validation because these endpoints can be tested hermetically with dependency overrides; the full suite still covers DB-backed routes.
+
 ## State as of 2026-06-06 (Phase 4 — Efficient Frontier ready to implement)
 
 Phases 0–3 complete. `/plan-eng-review` completed for Phase 4; architecture locked in `PHASES.md` decisions 28–38. See `CURRENT_TASK.md` for the ordered implementation steps and all locked rules.

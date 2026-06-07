@@ -1,10 +1,13 @@
 import uuid
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.holding import AssetClass
+
+_TickerStr = Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.^=\-]{1,20}$")]
+_AnalysisPeriod = Literal["1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"]
 
 # ────────────────────────────────────────────────────────────────
 # Portfolio CRUD schemas
@@ -140,3 +143,55 @@ class PortfolioMetricsResponse(BaseModel):
     period: str
     n_trading_days: int
     dropped_tickers: list[str]
+
+
+# ────────────────────────────────────────────────────────────────
+# Efficient frontier schemas
+# ────────────────────────────────────────────────────────────────
+
+
+class FrontierRequest(BaseModel):
+    """Input for POST /api/v1/analysis/frontier."""
+
+    tickers: Annotated[list[_TickerStr], Field(min_length=2, max_length=30)]
+    period: _AnalysisPeriod = "1y"
+
+    @field_validator("tickers", mode="after")
+    @classmethod
+    def normalize_and_dedup_tickers(cls, tickers: list[str]) -> list[str]:
+        normalized = [ticker.upper() for ticker in tickers]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Duplicate tickers are not allowed.")
+        return normalized
+
+
+class FrontierPoint(BaseModel):
+    annual_return: float
+    annual_volatility: float
+    sharpe_ratio: float
+    weights: dict[str, float]
+
+
+class FrontierResult(BaseModel):
+    tickers: list[str]
+    period: str
+    risk_free_rate: float
+    frontier: list[FrontierPoint]
+    min_variance: FrontierPoint
+    max_sharpe: FrontierPoint
+    dropped_tickers: list[str] = []
+    n_trading_days: int
+
+
+class FrontierTaskStatus(BaseModel):
+    task_id: str
+    status: str
+    result: FrontierResult | None = None
+    error: str | None = None
+
+
+class FrontierSubmitResponse(BaseModel):
+    task_id: str | None = None
+    status: str
+    result: FrontierResult | None = None
+    error: str | None = None
