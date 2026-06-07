@@ -3,6 +3,29 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7a: Frontend foundation implemented
+
+Implemented the locked Phase 7a foundation.
+
+**Changed:**
+- Installed Phase 7 frontend packages: `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, `jsdom`.
+- Added Vite `/api` dev proxy and nginx `/api/` production proxy.
+- Rewrote `apiClient.ts` to use relative `baseURL: "/api/v1"`, attach the in-memory access token, and use a deduplicated 401 refresh lock with `_retry`.
+- Added Zustand `authStore` with refresh token in `localStorage`, memory-only access token, deduplicated `silentRefresh()`, and app-init `/auth/me` hydration.
+- Added protected route bootstrapping and full Phase 7 route graph with placeholders for later pages.
+- Added backend `GET /api/v1/auth/me`.
+- Added `daily_returns` to `PortfolioMetricsResponse`, populated from the weighted return series inside `risk_service.calculate_portfolio_metrics()`.
+- Added focused tests for `/auth/me` and `daily_returns`.
+
+**Checks:**
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+- `cd backend && .venv/bin/ruff check app tests/test_auth.py tests/test_risk_metrics.py` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest tests/test_auth.py tests/test_risk_metrics.py -q` — 50 passed, 1 warning. Initial run failed because local Postgres was not started; after `docker compose up -d db redis`, rerun passed.
+
+**Gotcha for Phase 7d:** The locked planning docs mention a builder dropdown enum including `BOND/CRYPTO/OTHER`, but the actual backend `AssetClass` enum currently has `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Resolve intentionally before implementing the portfolio builder.
+
 ## 2026-06-07 — Phase 7: /plan-eng-review — architecture locked
 
 No code written. Architecture review for Phase 7 Frontend complete. 10 decisions locked, 12 outside-voice issues caught and resolved, 2 deferred to TODOS.md.

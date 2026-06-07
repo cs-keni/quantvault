@@ -15,6 +15,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.dependencies import CurrentUser
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
 from app.schemas.user import UserCreate, UserRead
@@ -86,6 +87,12 @@ async def login(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="This account has been deactivated")
 
     return _issue_token_pair(user.id)
+
+
+@router.get("/me", response_model=UserRead)
+async def get_me(current_user: CurrentUser) -> User:
+    """Return the authenticated user's public profile for frontend hydration."""
+    return current_user
 
 
 @router.post("/refresh", response_model=TokenResponse)

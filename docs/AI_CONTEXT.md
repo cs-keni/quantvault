@@ -148,6 +148,11 @@ for the full list with rationale. The ones that change *how code is written*:
 
 ## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
 
+Phase 7a foundation is implemented. The frontend now uses Vite/nginx `/api`
+proxies with `apiClient.baseURL = "/api/v1"`, a Zustand auth store with
+deduplicated `silentRefresh()`, protected route bootstrapping, and the backend
+now exposes `GET /auth/me` plus `PortfolioMetricsResponse.daily_returns`.
+
 **Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
 
 **apiClient.ts pattern (full rewrite from stub):**
@@ -169,9 +174,14 @@ for the full list with rationale. The ones that change *how code is written*:
 - HoldingCreate requires `asset_class: AssetClass` (enum: EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER) — portfolio builder UI must include this dropdown
 - Period toggle tokens: `1mo / 6mo / 1y / 2y / max` (NOT 1D/1W/1M — those don't exist in backend)
 
-**Testing:** Vitest + @testing-library/react + @testing-library/user-event + jsdom. Install: `npm install vitest @testing-library/react @testing-library/user-event jsdom --save-dev`
+**Testing:** Vitest + @testing-library/react + @testing-library/user-event + jsdom are installed for Phase 7 frontend unit tests.
 
 **Dashboard scope (redesigned from original spec):** Shows risk metrics from GET /portfolios/:id/metrics. No "portfolio value" widget (no endpoint). No "top movers" (no endpoint). Period toggle controls metrics recalc window.
+
+**Phase 7d gotcha:** The planning docs' future dropdown list includes
+`BOND/CRYPTO/OTHER`, but the actual backend `AssetClass` enum currently only
+has `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Do not submit nonexistent
+enum values from the frontend unless the backend enum is intentionally migrated.
 
 ## Design tokens (locked)
 

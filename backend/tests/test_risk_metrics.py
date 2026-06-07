@@ -66,6 +66,13 @@ async def test_portfolio_metrics_n_trading_days() -> None:
     assert result["n_trading_days"] == 20
 
 
+async def test_portfolio_metrics_includes_daily_returns() -> None:
+    result = risk_service.calculate_portfolio_metrics(RETURNS_DF, WEIGHTS, RISK_FREE_RATE)
+    expected = (RETURNS_DF @ WEIGHTS).to_numpy(dtype=np.float64)
+
+    assert result["daily_returns"] == pytest.approx(expected.tolist(), rel=REL)
+
+
 async def test_portfolio_metrics_zero_vol_returns_zero_sharpe() -> None:
     """A constant-return series has zero sample std → Sharpe = 0 (not ÷0 error)."""
     const_df = pd.DataFrame({"A": [0.001] * 10, "B": [0.001] * 10})

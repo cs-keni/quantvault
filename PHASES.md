@@ -443,15 +443,15 @@
 ### Tasks
 
 **Phase 7a — Foundation**
-- [ ] Install missing packages: `react-hook-form vitest @testing-library/react @testing-library/user-event jsdom`
-- [ ] Add Vite dev proxy: `server.proxy = { '/api': 'http://localhost:8000' }` in `vite.config.ts`
-- [ ] Add nginx API proxy: `location /api/ { proxy_pass http://backend:8000; }` in `nginx.conf`
-- [ ] Rewrite `apiClient.ts`: baseURL `/api/v1`, request interceptor (attach access token), response interceptor (deduplicated refresh lock with `_retry` guard, skip /auth/* paths)
-- [ ] Add GET /auth/me endpoint to backend (returns UserRead; auth required)
-- [ ] Add `daily_returns: list[float]` to PortfolioMetricsResponse schema + risk_service.py population
-- [ ] Zustand authStore: `{ user, accessToken, setTokens, logout, silentRefresh }`
-- [ ] ProtectedRoute wrapper — redirects to /login when no accessToken
-- [ ] Full routing in App.tsx: all 8 pages + ProtectedRoute
+- [x] Install missing packages: `react-hook-form vitest @testing-library/react @testing-library/user-event jsdom`
+- [x] Add Vite dev proxy: `server.proxy = { '/api': 'http://localhost:8000' }` in `vite.config.ts`
+- [x] Add nginx API proxy: `location /api/ { proxy_pass http://backend:8000; }` in `nginx.conf`
+- [x] Rewrite `apiClient.ts`: baseURL `/api/v1`, request interceptor (attach access token), response interceptor (deduplicated refresh lock with `_retry` guard, skip /auth/* paths)
+- [x] Add GET /auth/me endpoint to backend (returns UserRead; auth required)
+- [x] Add `daily_returns: list[float]` to PortfolioMetricsResponse schema + risk_service.py population
+- [x] Zustand authStore: `{ user, accessToken, setTokens, logout, silentRefresh }`
+- [x] ProtectedRoute wrapper — redirects to /login when no accessToken
+- [x] Full routing in App.tsx: all 8 pages + ProtectedRoute
 
 **Phase 7b — Auth Pages**
 - [ ] LoginPage (`/login`): centered card, email + password fields, React Hook Form, POST /auth/login, store tokens, redirect /dashboard

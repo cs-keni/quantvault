@@ -140,6 +140,29 @@ async def test_login_rejects_deactivated_account(
     assert response.status_code == 403
 
 
+# --- GET /auth/me -----------------------------------------------------------
+
+
+async def test_get_me_returns_authenticated_user(client: AsyncClient) -> None:
+    tokens = await _register_and_login(client)
+
+    response = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["email"] == REGISTER_PAYLOAD["email"]
+    assert body["full_name"] == REGISTER_PAYLOAD["full_name"]
+    assert "hashed_password" not in body
+
+
+async def test_get_me_requires_auth(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/auth/me")
+    assert response.status_code == 401
+
+
 # --- POST /auth/refresh ------------------------------------------------------
 
 

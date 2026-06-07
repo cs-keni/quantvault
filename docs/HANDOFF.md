@@ -5,24 +5,34 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, architecture locked, ready to implement)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7a complete)
 
-`/plan-eng-review` complete for Phase 7. All decisions locked. No code written yet — this is the start state for implementation.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation is implemented and verified; Phase 7b auth pages are next.
 
-**Two small backend changes required before Phase 7 is feature-complete:**
-1. `backend/app/api/v1/auth.py` — add `GET /auth/me` endpoint returning `UserRead` for the current user (authStore needs it to hydrate user profile on init)
-2. `backend/app/schemas/portfolio.py` + `backend/app/services/risk_service.py` — add `daily_returns: list[float]` to `PortfolioMetricsResponse`; populate from the returns series already computed for VaR
+**Implemented in Phase 7a:**
+- `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
+- `frontend/vite.config.ts` — dev proxy `/api` → `http://localhost:8000`.
+- `frontend/nginx.conf` — production `/api/` proxy → `backend:8000` before the SPA catch-all.
+- `frontend/src/services/apiClient.ts` — full rewrite with relative `baseURL: "/api/v1"`, request token attach, deduplicated refresh lock, `_retry`, and login/refresh skip paths.
+- `frontend/src/store/authStore.ts` — Zustand auth store with memory-only access token, `refresh_token` localStorage persistence, deduplicated `silentRefresh()`, and app-init hydration.
+- `frontend/src/App.tsx` — `AuthBootstrap`, `ProtectedRoute`, and full route graph for all Phase 7 pages.
+- `frontend/src/pages/LoginPage.tsx`, `RegisterPage.tsx`, `PlaceholderPage.tsx`, `frontend/src/types/api.ts` — temporary route surfaces/types for the foundation slice.
+- `backend/app/api/v1/auth.py` — `GET /auth/me` returning `UserRead` for the authenticated user.
+- `backend/app/schemas/portfolio.py`, `backend/app/services/risk_service.py`, `backend/app/api/v1/analysis.py` — `PortfolioMetricsResponse.daily_returns` populated from the weighted daily return series.
+- Tests: added `/auth/me` coverage and `daily_returns` unit coverage.
 
-**Frontend files that exist but need work:**
-- `frontend/src/services/apiClient.ts` — **full rewrite needed**: baseURL must be `/api/v1` (relative, not `http://localhost:8000/api/v1`); add request interceptor to attach access token; add response interceptor with deduplicated refresh lock
-- `frontend/vite.config.ts` — add `server.proxy = { '/api': { target: 'http://localhost:8000', changeOrigin: true } }`
-- `frontend/nginx.conf` — add `location /api/ { proxy_pass http://backend:8000; }` before the SPA catch-all
-- `frontend/src/App.tsx` — add full routing (all 8 pages) + `ProtectedRoute` wrapper
+**Verification after Phase 7a:**
+- `cd frontend && npm run build` — clean
+- `cd frontend && npm run lint` — clean
+- `cd backend && .venv/bin/ruff check app tests/test_auth.py tests/test_risk_metrics.py` — clean
+- `cd backend && .venv/bin/mypy app` — clean (39 source files)
+- `cd backend && .venv/bin/pytest tests/test_auth.py tests/test_risk_metrics.py -q` — 50 passed, 1 warning; local Postgres/Redis had to be started with `docker compose up -d db redis`.
 
-**Missing npm packages (install before any frontend work):**
-```bash
-cd frontend && npm install react-hook-form vitest @testing-library/react @testing-library/user-event jsdom --save-dev
-```
+**Next implementation slice: Phase 7b auth pages**
+- Replace the temporary `LoginPage` and `RegisterPage` placeholders with React Hook Form forms.
+- Login: `POST /auth/login` → `authStore.setTokens()` → hydrate user or redirect `/dashboard`; 401 shows "Invalid email or password".
+- Register: `POST /auth/register` returns `UserRead`, then auto `POST /auth/login`.
+- Add Vitest coverage for auth store + refresh lock.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)
@@ -33,6 +43,8 @@ cd frontend && npm install react-hook-form vitest @testing-library/react @testin
 - /register returns UserRead (not tokens) — auto POST /auth/login after register, then redirect /dashboard
 - HoldingCreate requires `asset_class` (enum: EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER) — portfolio builder UI must include dropdown
 - Vitest + @testing-library/react for unit tests: auth store, refresh lock, weight validator
+
+**Known Phase 7d risk:** planning docs list asset classes as `EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER`, but the backend enum currently exposes `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Resolve deliberately before implementing the portfolio builder dropdown.
 
 **NOT in scope for Phase 7:** portfolio value widget, 1D/1W toggles, cross-tab BroadcastChannel (TODO-9), OpenAPI type gen (TODO-10)
 

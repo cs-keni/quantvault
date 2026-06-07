@@ -133,6 +133,7 @@ class PortfolioMetricsResponse(BaseModel):
     trough_date: str | int
     # Sortino
     sortino_ratio: float
+    daily_returns: list[float]
     # Beta
     beta: float | None = None
     beta_benchmark: str | None = None

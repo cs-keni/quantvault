@@ -21,7 +21,7 @@ def calculate_portfolio_metrics(
     returns_df: pd.DataFrame,
     weights: npt.NDArray[np.float64],
     rfr: float = 0.04,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Annualized return, volatility, and Sharpe ratio for a weighted portfolio.
 
     `returns_df.columns` and `weights` must be index-aligned: weights[i]
@@ -34,6 +34,10 @@ def calculate_portfolio_metrics(
         annual_return     = (1 + mean_daily)^252 - 1   [geometric compounding]
         annual_vol        = std_daily(ddof=1) * sqrt252
         sharpe            = (annual_return - rfr) / annual_vol
+
+    Also returns `daily_returns`, the weighted daily portfolio return series,
+    for frontend distribution charts. This is derived from the same
+    `portfolio_daily_r` used in the formulas above.
     """
     port_returns: pd.Series = returns_df @ weights
     mean_daily = float(port_returns.mean())
@@ -51,6 +55,7 @@ def calculate_portfolio_metrics(
         "sharpe_ratio": sharpe,
         "mean_daily_return": mean_daily,
         "daily_volatility": std_daily,
+        "daily_returns": port_returns.astype(float).tolist(),
         "n_trading_days": len(port_returns),
     }
 

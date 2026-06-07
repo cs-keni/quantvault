@@ -1,25 +1,42 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, implementation not started)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7a complete)
 
-`/plan-eng-review` complete. All decisions locked. Start with Phase 7a.
+`/plan-eng-review` complete. All decisions locked. Phase 7b is next.
 
 ---
 
-## Phase 7a — Foundation (blocking dependency for everything else)
+## Phase 7a — Foundation ✅ complete
 
-### Step 1: Install missing packages
+Completed 2026-06-07.
+
+- Installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
+- Added Vite dev proxy and nginx `/api/` proxy.
+- Rewrote `frontend/src/services/apiClient.ts` with relative `baseURL: "/api/v1"`, token attach, `_retry`, and deduplicated refresh lock.
+- Added `GET /api/v1/auth/me` returning `UserRead`.
+- Added `daily_returns: list[float]` to `PortfolioMetricsResponse`, populated from the weighted return series in `risk_service.calculate_portfolio_metrics()`.
+- Added `frontend/src/store/authStore.ts` with memory-only access token, `refresh_token` localStorage storage, deduplicated `silentRefresh()`, and app-init hydration via `/auth/me`.
+- Added protected route bootstrapping and full Phase 7 route graph in `App.tsx`; future pages beyond auth/dashboard use lightweight placeholders until their slices are implemented.
+
+Verification:
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+- `cd backend && .venv/bin/ruff check app tests/test_auth.py tests/test_risk_metrics.py` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest tests/test_auth.py tests/test_risk_metrics.py -q` — 50 passed, 1 warning (required `docker compose up -d db redis` first)
+
+### Step 1: Install missing packages ✅
 ```bash
 cd frontend && npm install react-hook-form vitest @testing-library/react @testing-library/user-event jsdom --save-dev
 ```
 
-### Step 2: Vite dev proxy (`frontend/vite.config.ts`)
+### Step 2: Vite dev proxy (`frontend/vite.config.ts`) ✅
 Add under `server`:
 ```ts
 proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: true } }
 ```
 
-### Step 3: nginx API proxy (`frontend/nginx.conf`)
+### Step 3: nginx API proxy (`frontend/nginx.conf`) ✅
 Add before the SPA catch-all `location /`:
 ```nginx
 location /api/ {
@@ -27,7 +44,7 @@ location /api/ {
 }
 ```
 
-### Step 4: Rewrite `frontend/src/services/apiClient.ts`
+### Step 4: Rewrite `frontend/src/services/apiClient.ts` ✅
 - `baseURL: '/api/v1'` (relative — no VITE_API_BASE_URL needed)
 - Request interceptor: attach access token from Zustand store (`Authorization: Bearer <token>`)
 - Response interceptor: deduplicated refresh lock pattern below; `_retry` guard; skip on `/auth/login` and `/auth/refresh` paths
@@ -37,17 +54,17 @@ let refreshPromise: Promise<string> | null = null;
 // On 401: if (!config._retry) { config._retry = true; refreshPromise ??= authStore.silentRefresh().finally(() => { refreshPromise = null; }); const token = await refreshPromise; ... }
 ```
 
-### Step 5: Add GET /auth/me backend endpoint
+### Step 5: Add GET /auth/me backend endpoint ✅
 File: `backend/app/api/v1/auth.py`
 - `GET /me` → returns `UserRead` for `current_user`
 - Requires `CurrentUser` dependency (same pattern as other protected routes)
 
-### Step 6: Add daily_returns to PortfolioMetricsResponse
+### Step 6: Add daily_returns to PortfolioMetricsResponse ✅
 Files:
 - `backend/app/schemas/portfolio.py` — add `daily_returns: list[float]` to `PortfolioMetricsResponse`
 - `backend/app/services/risk_service.py` — populate `daily_returns` from the returns series already computed for VaR (it's already computed — just include it in the response)
 
-### Step 7: Zustand authStore (`frontend/src/store/authStore.ts`)
+### Step 7: Zustand authStore (`frontend/src/store/authStore.ts`) ✅
 ```ts
 interface AuthState {
   user: UserRead | null;
@@ -61,7 +78,7 @@ interface AuthState {
 - `silentRefresh`: read `localStorage.getItem('refresh_token')`, POST /auth/refresh, store new tokens; returns new access token
 - On app init: call `silentRefresh()` if localStorage has a refresh token, then GET /auth/me to hydrate `user`
 
-### Step 8: ProtectedRoute + full routing (`frontend/src/App.tsx`)
+### Step 8: ProtectedRoute + full routing (`frontend/src/App.tsx`) ✅
 - `ProtectedRoute`: checks `accessToken !== null`; redirects to `/login` if missing
 - Routes: `/login`, `/register` (public); `/dashboard`, `/portfolios/new`, `/portfolios/:id/analysis`, `/portfolios/:id/simulate`, `/portfolios/:id/backtest`, `/compare` (all protected)
 
@@ -109,6 +126,12 @@ interface AuthState {
 - Live weight sum indicator: green when sum = 100%, red when > 100%, animated bar
 - POST /portfolios creates portfolio + holdings
 - Unit test: weight validator (sum=100% valid, sum>100% invalid, duplicates invalid, empty invalid)
+
+**Phase 7d gotcha discovered during 7a:** the actual backend enum in
+`backend/app/models/holding.py` is currently `EQUITY / FIXED_INCOME /
+REAL_ESTATE / COMMODITY / CASH`, not the planned `BOND / CRYPTO / OTHER`
+set above. Resolve this before wiring the builder dropdown: either match the
+current backend enum or add a backend enum migration intentionally.
 
 ---
 

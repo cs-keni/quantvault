@@ -133,6 +133,7 @@ async def _compute_metrics(
         peak_date=dd_result["peak_date"],
         trough_date=dd_result["trough_date"],
         sortino_ratio=sortino,
+        daily_returns=basic["daily_returns"],
         beta=beta,
         beta_benchmark=benchmark_ticker if beta is not None else None,
         correlation=CorrelationMatrix(**corr_data),
