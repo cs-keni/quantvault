@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-07 — Phase 6: /review pass — 3 fixes applied
 
-Commit: (pending)
+Commit: 39fb38d
 
 Ran mandatory financial-math `/review` against Phase 6. All locked math decisions verified correct (CAGR formula, buy-and-hold, Calmar=None, yfinance end-exclusivity, symmetric data availability, Jensen alpha). Three fixes applied from adversarial review findings:
 
