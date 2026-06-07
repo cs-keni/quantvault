@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-07 — Phase 5: /review pass — 6 fixes, Phase 5 complete
 
-Commit: TBD (this commit)
+Commit: aacfe0f
 
 Mandatory `/review` checkpoint on Phase 5 Monte Carlo (financial math phase). 9 issues found across critical pass + adversarial subagent. 6 fixes applied; 3 were low-severity informational notes requiring no code change.
 
