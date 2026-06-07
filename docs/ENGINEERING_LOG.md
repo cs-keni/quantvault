@@ -3,6 +3,26 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7d: Portfolio Builder implemented
+
+Implemented the locked Phase 7d portfolio builder.
+
+**Changed:**
+- Added `PortfolioBuilderPage` and wired `/portfolios/new`.
+- Added portfolio metadata inputs: name, description, benchmark ticker.
+- Added holding rows with ticker, asset name, asset class dropdown, target weight %, current shares, and notes.
+- UI accepts target weight as percent and converts to backend decimal fraction strings before posting holdings.
+- Added live weight sum indicator and animated allocation bar.
+- Submit flow creates the portfolio, posts each holding, then redirects to `/dashboard`.
+- Added `validateHoldingDrafts()` and tests for valid 100%, >100%, duplicate tickers, and empty holdings.
+
+**Checks:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+
+**Decision/gotcha:** The planned builder enum listed `BOND/CRYPTO/OTHER`, but the backend enum currently has `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. The builder uses the actual backend enum to avoid invalid API submissions; adding the planned values requires a backend enum migration.
+
 ## 2026-06-07 — Phase 7c: Dashboard implemented
 
 Implemented the locked Phase 7c dashboard.

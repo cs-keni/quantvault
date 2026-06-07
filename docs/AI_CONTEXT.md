@@ -148,8 +148,8 @@ for the full list with rationale. The ones that change *how code is written*:
 
 ## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
 
-Phase 7a foundation, Phase 7b auth pages, and Phase 7c dashboard are
-implemented. The frontend now uses Vite/nginx `/api` proxies with
+Phase 7a foundation, Phase 7b auth pages, Phase 7c dashboard, and Phase 7d
+portfolio builder are implemented. The frontend now uses Vite/nginx `/api` proxies with
 `apiClient.baseURL = "/api/v1"`, a Zustand auth store with deduplicated
 `silentRefresh()`, protected route bootstrapping, React Hook Form login/register
 pages, and a dashboard that reads `GET /portfolios` plus
@@ -186,10 +186,11 @@ bundle is >500 kB after Recharts entered the dashboard path. This is not a
 Phase 7 blocker; consider route-level lazy loading in polish if bundle size
 matters.
 
-**Phase 7d gotcha:** The planning docs' future dropdown list includes
-`BOND/CRYPTO/OTHER`, but the actual backend `AssetClass` enum currently only
-has `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Do not submit nonexistent
-enum values from the frontend unless the backend enum is intentionally migrated.
+**Asset classes:** The portfolio builder uses the actual backend enum:
+`EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. The planning docs' future
+dropdown list included `BOND/CRYPTO/OTHER`, but those values do not exist in the
+backend enum and should not be submitted unless a backend enum migration adds
+them.
 
 ## Design tokens (locked)
 

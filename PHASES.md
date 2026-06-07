@@ -467,10 +467,10 @@
 - [x] Loading skeletons + error states with retry
 
 **Phase 7d — Portfolio Builder**
-- [ ] PortfolioBuilderPage (`/portfolios/new`): ticker input, asset_class dropdown (EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER), target_weight input, current_shares + notes optional
-- [ ] Live weight sum indicator: green when sum = 100%, red when > 100%; animated bar
-- [ ] POST /portfolios (create portfolio + holdings)
-- [ ] Unit test: weight validator (sum=100%, duplicates, empty)
+- [x] PortfolioBuilderPage (`/portfolios/new`): ticker input, asset_class dropdown, target_weight input, current_shares + notes optional
+- [x] Live weight sum indicator: green when sum = 100%, red when > 100%; animated bar
+- [x] POST /portfolios (create portfolio + holdings)
+- [x] Unit test: weight validator (sum=100%, duplicates, empty)
 
 **Phase 7e — Analysis Page**
 - [ ] AnalysisPage (`/portfolios/:id/analysis`): Efficient Frontier scatter with TanStack Query polling

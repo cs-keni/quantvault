@@ -20,6 +20,26 @@ export interface PortfolioListItem {
   holding_count: number;
 }
 
+export type AssetClass = "EQUITY" | "FIXED_INCOME" | "REAL_ESTATE" | "COMMODITY" | "CASH";
+
+export interface HoldingOut {
+  id: string;
+  ticker: string;
+  asset_name: string;
+  asset_class: AssetClass;
+  target_weight: string;
+  current_shares: string | null;
+  notes: string | null;
+}
+
+export interface PortfolioOut {
+  id: string;
+  name: string;
+  description: string | null;
+  benchmark_ticker: string;
+  holdings: HoldingOut[];
+}
+
 export interface CorrelationMatrix {
   tickers: string[];
   matrix: number[][];

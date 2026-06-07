@@ -5,6 +5,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { PortfolioBuilderPage } from "./pages/PortfolioBuilderPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { useAuthStore } from "./store/authStore";
 
@@ -70,7 +71,7 @@ function App() {
               path="/portfolios/new"
               element={
                 <ProtectedRoute>
-                  <PlaceholderPage title="New Portfolio" />
+                  <PortfolioBuilderPage />
                 </ProtectedRoute>
               }
             />

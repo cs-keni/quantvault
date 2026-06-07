@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7c complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7d complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7d Portfolio Builder is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7e Analysis Page is next.
 
 ---
 
@@ -148,20 +148,35 @@ Verification:
 
 ---
 
-## Phase 7d — Portfolio Builder (`/portfolios/new`)
+## Phase 7d — Portfolio Builder (`/portfolios/new`) ✅ complete
 
-- Ticker input, `asset_class` dropdown (EQUITY / BOND / REAL_ESTATE / COMMODITY / CRYPTO / CASH / OTHER — required by HoldingCreate schema)
-- `target_weight` input (decimal, 0–1 or percent — clarify with backend schema)
-- Optional: `current_shares`, `notes`
-- Live weight sum indicator: green when sum = 100%, red when > 100%, animated bar
-- POST /portfolios creates portfolio + holdings
-- Unit test: weight validator (sum=100% valid, sum>100% invalid, duplicates invalid, empty invalid)
+Completed 2026-06-07.
 
-**Phase 7d gotcha discovered during 7a:** the actual backend enum in
-`backend/app/models/holding.py` is currently `EQUITY / FIXED_INCOME /
-REAL_ESTATE / COMMODITY / CASH`, not the planned `BOND / CRYPTO / OTHER`
-set above. Resolve this before wiring the builder dropdown: either match the
-current backend enum or add a backend enum migration intentionally.
+- Added `PortfolioBuilderPage` and wired `/portfolios/new`.
+- Form creates a portfolio with name, description, and benchmark ticker.
+- Holding rows include ticker, asset name, asset class dropdown, target weight %, current shares, and notes.
+- UI accepts weight as a percentage and converts to backend `target_weight` fraction (`0.60000`) on submit.
+- Submit flow: `POST /portfolios`, then `POST /portfolios/:id/holdings` for each holding, then redirect to `/dashboard`.
+- Live weight sum indicator shows allocated percent and animated bar, with green at 100% and red over 100%.
+- Added shared `validateHoldingDrafts()` and unit tests for sum=100, sum>100, duplicates, and empty holdings.
+- Asset-class dropdown uses actual backend enum values: `EQUITY / FIXED_INCOME / REAL_ESTATE / COMMODITY / CASH`.
+
+Verification:
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed; Vite still warns main bundle >500 kB
+- `cd frontend && npm run lint` — passed
+
+- [x] Ticker input, `asset_class` dropdown
+- [x] `target_weight` input as percent, converted to backend decimal fraction
+- [x] Optional: `current_shares`, `notes`
+- [x] Live weight sum indicator: green when sum = 100%, red when > 100%, animated bar
+- [x] POST /portfolios creates portfolio + holdings
+- [x] Unit test: weight validator (sum=100% valid, sum>100% invalid, duplicates invalid, empty invalid)
+
+**Phase 7d enum resolution:** the builder uses the current backend enum in
+`backend/app/models/holding.py`: `EQUITY / FIXED_INCOME / REAL_ESTATE /
+COMMODITY / CASH`. The planned `BOND / CRYPTO / OTHER` values were not added
+because they would require an intentional backend enum migration.
 
 ---
 

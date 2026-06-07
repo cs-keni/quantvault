@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7c complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7d complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation, Phase 7b auth pages, and Phase 7c dashboard are implemented and verified; Phase 7d Portfolio Builder is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation, Phase 7b auth pages, Phase 7c dashboard, and Phase 7d portfolio builder are implemented and verified; Phase 7e Analysis Page is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -53,9 +53,23 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run lint` — clean
 - `cd frontend && npm run build` — clean; Vite emits a non-blocking >500 kB chunk warning after Recharts enters the main bundle.
 
-**Next implementation slice: Phase 7d Portfolio Builder**
-- Before wiring the asset-class dropdown, resolve the enum mismatch noted below.
-- Implement ticker rows, asset class dropdown, target weight/current shares/notes, live weight-sum bar, create portfolio + holdings, and weight validator tests.
+**Implemented in Phase 7d:**
+- `frontend/src/pages/PortfolioBuilderPage.tsx` — portfolio create form and holdings builder.
+- `/portfolios/new` route now renders the builder.
+- Holding rows include ticker, asset name, asset class dropdown, target weight %, current shares, and notes.
+- Weight input is a percent in the UI and is converted to backend decimal fraction strings on submit.
+- Submit flow creates the portfolio first, then posts holdings, then redirects to `/dashboard`.
+- `frontend/src/utils/portfolioValidation.ts` + tests cover valid 100%, >100%, duplicate tickers, and empty holdings.
+
+**Verification after Phase 7d:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
+- `cd frontend && npm run lint` — clean
+
+**Next implementation slice: Phase 7e Analysis Page**
+- Build `AnalysisPage` for `/portfolios/:id/analysis`.
+- Implement efficient frontier cache-hit and polling behavior exactly as locked.
+- Reuse dashboard risk cards where practical; add frontier scatter and correlation heatmap.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)
@@ -67,7 +81,7 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - HoldingCreate requires `asset_class` (enum: EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER) — portfolio builder UI must include dropdown
 - Vitest + @testing-library/react for unit tests: auth store, refresh lock, weight validator
 
-**Known Phase 7d risk:** planning docs list asset classes as `EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER`, but the backend enum currently exposes `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Resolve deliberately before implementing the portfolio builder dropdown.
+**Asset class enum note:** planning docs originally listed asset classes as `EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER`, but the backend enum currently exposes `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. Phase 7d intentionally used the current backend enum to avoid submitting invalid values; add a backend enum migration later if `BOND/CRYPTO/OTHER` are required.
 
 **NOT in scope for Phase 7:** portfolio value widget, 1D/1W toggles, cross-tab BroadcastChannel (TODO-9), OpenAPI type gen (TODO-10)
 
