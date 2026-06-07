@@ -3,6 +3,23 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7h: Compare + Polish implemented
+
+Implemented the locked Phase 7h compare page and final frontend retry polish.
+
+**Changed:**
+- Added `ComparePage` and wired `/compare`.
+- Compare loads portfolios, defaults to the first two, supports 2+ selected portfolios, and renders a side-by-side 1-year metrics table.
+- Added retry buttons to Compare metrics errors and to Monte Carlo/Backtest task error states.
+- Removed the unused `PlaceholderPage` from the foundation scaffold.
+
+**Checks:**
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 8 passed
+
+**Build note:** Vite still warns the main JS chunk is >500 kB due to Recharts in the main route bundle. Phase 7 implementation is complete, but `/qa` still needs to run before marking Phase 7 complete.
+
 ## 2026-06-07 — Phase 7g: Backtest Page implemented
 
 Implemented the locked Phase 7g backtest page.

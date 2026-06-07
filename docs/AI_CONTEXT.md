@@ -148,15 +148,17 @@ for the full list with rationale. The ones that change *how code is written*:
 
 ## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
 
-Phase 7a foundation through Phase 7g backtest page are implemented. The
+Phase 7a foundation through Phase 7h compare/polish are implemented; Phase 7
+still needs the required `/qa` pass before it should be marked complete. The
 frontend now uses Vite/nginx `/api` proxies with `apiClient.baseURL = "/api/v1"`,
 a Zustand auth store with deduplicated `silentRefresh()`, protected route
 bootstrapping, React Hook Form login/register pages, a dashboard that reads
 `GET /portfolios` plus `GET /analysis/portfolios/:id/metrics`, a portfolio
 builder, an analysis page with efficient-frontier polling, and a Monte Carlo
 page that submits/polls persisted simulation results, and a backtest page that
-submits/polls persisted backtests. The backend now exposes `GET /auth/me` plus
-`PortfolioMetricsResponse.daily_returns`.
+submits/polls persisted backtests. `/compare` loads portfolios and compares
+selected 1-year risk metrics side by side. The backend now exposes
+`GET /auth/me` plus `PortfolioMetricsResponse.daily_returns`.
 
 **Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
 
@@ -183,10 +185,9 @@ submits/polls persisted backtests. The backend now exposes `GET /auth/me` plus
 
 **Dashboard scope (redesigned from original spec):** Shows risk metrics from GET /portfolios/:id/metrics. No "portfolio value" widget (no endpoint). No "top movers" (no endpoint). Period toggle controls metrics recalc window.
 
-**Build note:** After Phase 7c, `npm run build` passes but Vite warns the main
-bundle is >500 kB after Recharts entered the dashboard path. This is not a
-Phase 7 blocker; consider route-level lazy loading in polish if bundle size
-matters.
+**Build note:** `npm run build` passes through Phase 7h, but Vite warns the main
+bundle is >500 kB after Recharts entered the routed pages. This is not a Phase 7
+blocker; consider route-level lazy loading if bundle size matters.
 
 **Asset classes:** The portfolio builder uses the actual backend enum:
 `EQUITY/FIXED_INCOME/REAL_ESTATE/COMMODITY/CASH`. The planning docs' future

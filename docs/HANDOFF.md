@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7g complete)
+## State as of 2026-06-07 (Phase 7 — Frontend implementation complete, QA pending)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7g backtest page are implemented and verified; Phase 7h Compare + Polish is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7h compare/polish are implemented and verified with frontend build/lint/tests. Run `/qa` before marking Phase 7 complete.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -16,7 +16,7 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `frontend/src/services/apiClient.ts` — full rewrite with relative `baseURL: "/api/v1"`, request token attach, deduplicated refresh lock, `_retry`, and login/refresh skip paths.
 - `frontend/src/store/authStore.ts` — Zustand auth store with memory-only access token, `refresh_token` localStorage persistence, deduplicated `silentRefresh()`, and app-init hydration.
 - `frontend/src/App.tsx` — `AuthBootstrap`, `ProtectedRoute`, and full route graph for all Phase 7 pages.
-- `frontend/src/pages/LoginPage.tsx`, `RegisterPage.tsx`, `PlaceholderPage.tsx`, `frontend/src/types/api.ts` — temporary route surfaces/types for the foundation slice.
+- `frontend/src/pages/LoginPage.tsx`, `RegisterPage.tsx`, `frontend/src/types/api.ts` — route surfaces/types for the foundation slice; the temporary placeholder page was removed in Phase 7h.
 - `backend/app/api/v1/auth.py` — `GET /auth/me` returning `UserRead` for the authenticated user.
 - `backend/app/schemas/portfolio.py`, `backend/app/services/risk_service.py`, `backend/app/api/v1/analysis.py` — `PortfolioMetricsResponse.daily_returns` populated from the weighted daily return series.
 - Tests: added `/auth/me` coverage and `daily_returns` unit coverage.
@@ -106,9 +106,18 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
 - `cd frontend && npm run lint` — clean
 
-**Next implementation slice: Phase 7h Compare + Polish**
-- Build `/compare`.
-- Add loading/error states where still missing.
+**Implemented in Phase 7h:**
+- `frontend/src/pages/ComparePage.tsx` — compare route with multi-portfolio selection and side-by-side 1-year metrics table.
+- `/compare` route now renders the real compare page.
+- Monte Carlo and Backtest error blocks now include retry actions.
+- Removed the unused `PlaceholderPage` from the Phase 7a scaffold.
+
+**Verification after Phase 7h:**
+- `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
+- `cd frontend && npm run lint` — clean
+- `cd frontend && npm test` — 8 passed
+
+**Next checkpoint:**
 - Run `/qa` before marking Phase 7 complete.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**

@@ -4,10 +4,10 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 
 import { AnalysisPage } from "./pages/AnalysisPage";
 import { BacktestPage } from "./pages/BacktestPage";
+import { ComparePage } from "./pages/ComparePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MonteCarloPage } from "./pages/MonteCarloPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { PortfolioBuilderPage } from "./pages/PortfolioBuilderPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { useAuthStore } from "./store/authStore";
@@ -106,7 +106,7 @@ function App() {
               path="/compare"
               element={
                 <ProtectedRoute>
-                  <PlaceholderPage title="Compare" />
+                  <ComparePage />
                 </ProtectedRoute>
               }
             />

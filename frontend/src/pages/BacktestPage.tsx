@@ -183,7 +183,15 @@ export function BacktestPage() {
 
         {submitError ?? result?.error ? (
           <div className="mt-6 rounded-lg border border-negative/20 bg-negative/5 p-4 text-sm text-negative">
-            {submitError ?? result?.error}
+            <p>{submitError ?? result?.error}</p>
+            <button
+              className="mt-3 rounded-md bg-negative px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!portfolioQuery.isSuccess || submitBacktest.isPending}
+              type="button"
+              onClick={() => submitBacktest.mutate()}
+            >
+              Retry
+            </button>
           </div>
         ) : null}
 

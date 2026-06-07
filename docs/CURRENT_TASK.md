@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7g complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, implementation complete; QA pending)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7h Compare + Polish is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7a through Phase 7h are implemented and verified with frontend build/lint/tests. Run `/qa` before marking Phase 7 complete.
 
 ---
 
@@ -263,11 +263,25 @@ Verification:
 
 ---
 
-## Phase 7h — Compare + Polish
+## Phase 7h — Compare + Polish ✅ implementation complete
 
-- ComparePage (`/compare`): multi-portfolio selector, side-by-side metrics table
-- Global: loading skeletons on all data-fetching views, error states with retry
-- Run `/qa` before marking Phase 7 complete
+Completed 2026-06-07.
+
+- Added `ComparePage` and wired `/compare`.
+- Loads `GET /portfolios`, defaults to the first two portfolios, and supports selecting 2+ portfolios with checkboxes.
+- Loads each selected portfolio's 1-year metrics from `GET /analysis/portfolios/:id/metrics`.
+- Renders a side-by-side metrics table for annual return, annual volatility, Sharpe, Sortino, VaR, CVaR, Beta, and Max Drawdown.
+- Added retry buttons to the Compare metrics error state, Monte Carlo submit/task error state, and Backtest submit/task error state.
+- Removed the unused `PlaceholderPage` from the foundation slice.
+
+Verification:
+- `cd frontend && npm run build` — passed; Vite still warns main bundle >500 kB
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 8 passed
+
+- [x] ComparePage (`/compare`): multi-portfolio selector, side-by-side metrics table
+- [x] Global: loading skeletons on all data-fetching views, error states with retry
+- [ ] Run `/qa` before marking Phase 7 complete
 
 ---
 

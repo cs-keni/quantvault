@@ -490,8 +490,8 @@
 - [x] Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (may be null → "N/A"), Max Drawdown, Benchmark comparison
 
 **Phase 7h — Compare + Polish**
-- [ ] ComparePage (`/compare`): select 2+ portfolios, side-by-side metrics table
-- [ ] Global: loading skeletons on all data-fetching views, error states with retry
+- [x] ComparePage (`/compare`): select 2+ portfolios, side-by-side metrics table
+- [x] Global: loading skeletons on all data-fetching views, error states with retry
 - [ ] Run `/qa` to verify all features end-to-end before marking Phase 7 complete
 
 **QoL:** Animated number counters on metric cards (count up on load). Staggered entrance animations on dashboard cards. Weight bar micro-animations on portfolio builder input.
