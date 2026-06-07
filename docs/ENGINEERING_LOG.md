@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-07 — Phase 4: /review pass — 2 fixes, Phase 4 complete
 
-Commit: (pending)
+Commit: e83e640
 
 Manual `/review` checklist pass on Phase 4 (direct-to-main workflow). Zero critical findings. Two informational fixes applied:
 
