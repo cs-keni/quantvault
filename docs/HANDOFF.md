@@ -5,9 +5,14 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend implementation complete, QA pending)
+## State as of 2026-06-07 (Phase 7 — Frontend complete ✅; Phase 8 is next)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7h compare/polish are implemented and verified with frontend build/lint/tests. Run `/qa` before marking Phase 7 complete.
+Phase 7 is fully complete. `/qa` Standard tier passed with 2 bugs found and fixed. Phase 8 (Polish, CI, README) is the next active phase.
+
+**QA fixes in Phase 7:**
+- `backend/app/api/v1/analysis.py` — `_compute_metrics()` now catches `ValueError` from `get_historical_returns()` and returns HTTP 503 instead of 500 when Yahoo Finance is rate-limited.
+- `frontend/src/pages/ComparePage.tsx` — metrics queries gated on `activeSelectedIds.length >= 2`; error banner and table gated on `selectedPortfolios.length >= 2`.
+- `frontend/vite.config.ts` — added `watch.usePolling: true` (300ms) to fix Vite HMR on WSL2 Windows filesystem (`/mnt/c/`).
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.

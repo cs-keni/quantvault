@@ -1,8 +1,12 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, implementation complete; QA pending)
+**Phase 7 — Frontend** ✅ complete (2026-06-07)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7a through Phase 7h are implemented and verified with frontend build/lint/tests. Run `/qa` before marking Phase 7 complete.
+`/qa` Standard tier passed. 2 bugs found and fixed:
+- ISSUE-001 (HIGH): Backend `_compute_metrics()` returning 500 instead of 503 on Yahoo Finance rate-limit → fixed in `ccca4c7`
+- ISSUE-002 (MEDIUM): `ComparePage` premature metrics queries + table render when < 2 portfolios selected → fixed in `0059387`
+
+**Next:** Phase 8 — Polish, CI, and Portfolio Integration
 
 ---
 
