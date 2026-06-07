@@ -36,3 +36,4 @@ node_modules/
 
 # gbrain indexed source cache
 .sources/
+.gstack/

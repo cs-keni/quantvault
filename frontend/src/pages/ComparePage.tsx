@@ -42,7 +42,7 @@ export function ComparePage() {
 
   const metricsQueries = useQueries({
     queries: activeSelectedIds.map((portfolioId) => ({
-      enabled: activeSelectedIds.length > 0,
+      enabled: activeSelectedIds.length >= 2,
       queryKey: ["compareMetrics", portfolioId],
       queryFn: async () => {
         const response = await apiClient.get<PortfolioMetricsResponse>(
@@ -127,7 +127,7 @@ export function ComparePage() {
           </div>
         ) : null}
 
-        {hasMetricError ? (
+        {selectedPortfolios.length >= 2 && hasMetricError ? (
           <div className="mt-8 rounded-lg border border-negative/20 bg-negative/5 p-4">
             <p className="font-medium text-negative">Unable to load one or more metric sets.</p>
             <button
@@ -140,7 +140,7 @@ export function ComparePage() {
           </div>
         ) : null}
 
-        <div className="mt-8 overflow-x-auto rounded-lg border border-ink/10 bg-white shadow-sm">
+        {selectedPortfolios.length >= 2 ? <div className="mt-8 overflow-x-auto rounded-lg border border-ink/10 bg-white shadow-sm">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-ink/10 bg-surface">
@@ -168,7 +168,7 @@ export function ComparePage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </div> : null}
       </section>
     </main>
   );

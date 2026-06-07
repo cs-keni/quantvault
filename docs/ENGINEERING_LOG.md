@@ -3,6 +3,20 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — /qa Phase 7: Two bugs fixed
+
+Running /qa Standard tier on Phase 7 frontend. Two bugs found and fixed.
+
+**ISSUE-001 (HIGH — backend):** `_compute_metrics()` in `analysis.py` did not catch `ValueError` raised by `get_historical_returns()` when yfinance is rate-limited (HTTP 429 → empty response → JSONDecodeError → ValueError). The uncaught ValueError surfaced as HTTP 500. Fixed: wrapped the call in `try/except ValueError` and converted it to HTTP 503 ("Market data unavailable"). Verified via curl before/after.
+
+**ISSUE-002 (MEDIUM — frontend):** `ComparePage` fired metrics queries (`enabled: activeSelectedIds.length > 0`) and rendered the comparison table even when fewer than 2 portfolios were selected. Users with 1 portfolio saw an error banner and a 1-column N/A table on first load. Fixed: changed `enabled` condition to `>= 2`, added `selectedPortfolios.length >= 2 &&` guard on error banner, and wrapped table in same conditional. Also added `vite.config.ts` `watch.usePolling: true` to fix WSL2 file-watcher issue that prevented Vite HMR from picking up edits on the Windows filesystem.
+
+**Also fixed:** Vite `watch.usePolling: true` (interval 300ms) so file changes on `/mnt/c/` are picked up by Vite HMR in future dev sessions.
+
+**Checks:**
+- `cd frontend && npx tsc --noEmit` — passed
+- `cd backend && ruff check app/api/v1/analysis.py` — passed
+
 ## 2026-06-07 — Phase 7h: Compare + Polish implemented
 
 Implemented the locked Phase 7h compare page and final frontend retry polish.
