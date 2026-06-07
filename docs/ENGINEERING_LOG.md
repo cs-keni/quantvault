@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-07 — Phase 6: Backtesting Engine implementation
 
-Commit: pending
+Commit: bf57e41
 
 Implemented Phase 6 Backtesting Engine according to PHASES.md decisions 56–70. Phase 6 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
 
