@@ -26,7 +26,7 @@ Phase 8 architecture locked via full `/plan-eng-review` + Codex outside voice.
 - README screenshots deferred until after Phase 8b UI overhaul
 - README "GBM" → corrected to "Student-t simulation (df=5)"
 
-**Commit:** TBD (this log entry recorded before commit)
+**Commit:** `7eab4aa`
 
 ## 2026-06-07 — /qa Phase 7: Two bugs fixed
 
