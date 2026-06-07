@@ -47,6 +47,23 @@
 | 36 | Both frontier endpoints require `CurrentUser` auth | same pattern as Phase 3 security fix; unauthenticated callers must not trigger yfinance + Celery work |
 | 37 | `FrontierRequest.tickers`: uppercase normalize before dedup check; max 30 tickers; pattern same as `AdHocHolding.ticker` | "AAPL" and "aapl" must be caught as duplicates; ticker count cap prevents slow/unstable covariance for large N |
 | 38 | Solver failure at a target return → skip point, return best-effort partial frontier | SLSQP `status != 0` at a specific target is normal (infeasible constraint); the whole task should not fail for partial infeasibility |
+| 39 | MC API input: `tickers + weights + period + optional portfolio_id` (ad-hoc, not portfolio_id required) | Enables comparison endpoint (rebalanced scenario has no portfolio_id); mirrors Phase 4 frontier pattern |
+| 40 | MC result storage: POST creates `SimulationResult(status="PENDING")`, Celery task writes results | Permanent PostgreSQL storage; GET `/simulation/{id}` reads by DB UUID; no Celery TTL expiry; audit trail |
+| 41 | `SimulationResult`: new model file (not reuse `BacktestResult`) | Different schema shape; nullable `portfolio_id`, required `user_id`; separate migration |
+| 42 | MC RNG: `np.random.default_rng(seed)` (new-style, isolated per-task RNG) | Thread-safe for concurrent Celery workers; global `np.random.seed()` is not safe under prefork concurrency |
+| 43 | Contribution injection: `portfolio_values[year*252 - 1] += annual_contribution` for year in range(1, years+1) | Fence-post fix: yields exactly `years` contributions (not `years-1`); injects at end-of-year |
+| 44 | Celery DB bridge: `asyncio.run()` with a **fresh** async engine created+disposed inside each call | Never reuse module-level async engine inside `asyncio.run()`; fresh engine avoids event-loop/pool conflict in prefork workers |
+| 45 | t-distribution scaling: `daily_mu + daily_sigma * rng.standard_t(df=5)` (direct scale, no variance normalization) | Decision #5 intent: fat tails + slightly inflated baseline vol (realized vol ≈ 1.29x historical); document in docstring |
+| 46 | `probability_of_profit`: `(final_values > initial_investment + annual_contribution * years).mean()` | Financially correct when contributions > 0; `final_value > initial_investment` is misleading when user has also contributed capital |
+| 47 | `SimulationResult` stores `tickers` (JSONB), `weights` (JSONB), `period` (str) | Audit + reproduction: row is self-describing; inputs visible even on FAILURE state |
+| 48 | GET `/simulation/{id}`: filter `WHERE id=? AND user_id=?` | Auth alone does not prevent cross-user reads; explicit user_id filter required |
+| 49 | POST validates `portfolio_id` ownership if provided: must belong to `current_user` | Same security principle as Phase 3 auth fix; unauthenticated/wrong-owner access must be 403/404 |
+| 50 | Celery timeout: `soft_time_limit=55, time_limit=60` (same as Phase 4) | yfinance fetch dominates; same 55s soft limit prevents zombie tasks |
+| 51 | Dispatch failure (DB row committed, Celery dispatch fails): log error, return 500; add TODO for orphan cleanup | Best-effort at MVP scale; PENDING rows are visible (not silent); user can re-submit |
+| 52 | `SimulationResult.status` is a native Postgres enum `simulation_status {PENDING, SUCCESS, FAILURE}` | Consistent with `RebalanceFrequency` enum pattern in `BacktestResult` |
+| 53 | Input validation: ticker regex `^[A-Za-z0-9.^=\-]{1,20}$`, uppercase-normalize, dedup; weights non-negative + sum to 1.0 ± 0.001; `years >= 1`; `n_simulations >= 1`; period must be `_AnalysisPeriod` literal | Inherit all validation patterns from Phase 2 ticker whitelist and Phase 3 weight validation |
+| 54 | Dropped tickers from yfinance → reject simulation with 422 (do not re-normalize weights silently) | Silent weight re-normalization changes the user's portfolio composition without their knowledge |
+| 55 | `sample_paths`: select 20 paths by index spread evenly across sorted final values (quantile-sampled) for visual diversity | Deterministic selection rule: `np.linspace(0, n_simulations-1, 20, dtype=int)` on argsorted final values |
 
 ---
 
@@ -202,26 +219,89 @@
 ---
 
 ## Phase 5 — Monte Carlo Simulation
-- [ ] Implement `run_monte_carlo()` in `simulation_service.py`
-  - **Use `np.random.standard_t(df=5)` scaled to `daily_sigma`, not `np.random.normal()`**
-  - **Pydantic validators: `n_simulations ≤ 1000`, `years ≤ 30`**
-  - **Annual contributions: inject at year boundary and compound forward:**
-    ```python
-    portfolio_values = np.zeros((trading_days, n_simulations))
-    portfolio_values[0] = initial_investment
-    for t in range(1, trading_days):
-        portfolio_values[t] = portfolio_values[t-1] * (1 + random_returns[t])
-        if t % 252 == 0:
-            portfolio_values[t] += annual_contribution
-    ```
-  - Seed support: `np.random.seed(seed)` param for deterministic tests
-  - Percentile bands: P5, P10, P25, P50, P75, P90, P95
-  - 20 representative sample paths for visualization
-- [ ] Wire into Celery task — async execution, result stored in PostgreSQL
-- [ ] Write unit tests: same seed → same results, 0% volatility → straight line (within float epsilon), contributions sum correctly at final year
-- [ ] Store simulation results in PostgreSQL (`SimulationResult` model)
+> **`/plan-eng-review` completed 2026-06-07** — architecture locked in decisions 39–55 above.
+> Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
 
-**QoL:** Comparison endpoint: run two simulations (current portfolio vs. rebalanced) and return both in one response.
+- [ ] Add `app/models/simulation_result.py` — `SimulationResult` ORM model (decision 41):
+  - `status`: native Postgres enum `simulation_status {PENDING, SUCCESS, FAILURE}` (decision 52)
+  - `user_id`: UUID FK → users.id, NOT NULL (decision 48)
+  - `portfolio_id`: UUID FK → portfolios.id, nullable, CASCADE (decision 41)
+  - `tickers`: JSONB, `weights`: JSONB, `period`: str (decision 47)
+  - `initial_investment`: Numeric(18,2), `years`: int, `n_simulations`: int, `annual_contribution`: Numeric(18,2)
+  - `seed`: int nullable, `task_id`: str nullable
+  - `results`: JSONB nullable (null until SUCCESS), `error`: str nullable
+  - `created_at`: datetime
+
+- [ ] Add `SimulationResult` to `app/models/__init__.py` (for Alembic autodiscovery)
+
+- [ ] Write Alembic migration: creates `simulation_status` enum + `simulation_results` table
+
+- [ ] Implement `run_monte_carlo()` in `simulation_service.py`:
+  - Input: `portfolio_metrics: dict` (keys: `annualized_return`, `annualized_volatility`), `initial_investment`, `years`, `n_simulations`, `annual_contribution`, `seed`
+  - `rng = np.random.default_rng(seed)` — thread-safe isolated RNG (decision 42)
+  - `daily_mu = mu / 252`; `daily_sigma = sigma / sqrt(252)` (arithmetic annual return)
+  - `t_draws = rng.standard_t(df=5, size=(trading_days, n_simulations))`
+  - `random_returns[t] = daily_mu + daily_sigma * t_draws[t]` — direct scale, no variance normalization (decision 45)
+  - Contribution injection: `portfolio_values[year*252 - 1] += annual_contribution` for year in `range(1, years+1)` — exactly `years` injections (decision 43)
+  - `probability_of_profit`: `(final_values > initial_investment + annual_contribution * years).mean()` (decision 46)
+  - `probability_of_doubling`: `(final_values > (initial_investment + annual_contribution * years) * 2).mean()`
+  - `sample_paths`: 20 paths quantile-sampled from sorted final values (decision 55)
+  - Percentile bands: P5, P10, P25, P50, P75, P90, P95
+
+- [ ] Implement Celery task `run_simulation(simulation_id, params)` in `simulation_service.py` (decision 40, 44, 50):
+  - `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` (decision 50)
+  - Fetch returns via `_fetch_and_process_returns()` directly (sync, no DI) — mirrors Phase 4 pattern
+  - If any tickers dropped by data-quality pipeline → mark FAILURE (decision 54)
+  - `calculate_portfolio_metrics(weights, returns_df)` from `risk_service.py`
+  - `asyncio.run(_write_result_to_db(...))` with fresh async engine per call (decision 44)
+  - Catch `SoftTimeLimitExceeded` → write `status=FAILURE, error="timeout"` to DB
+  - Catch all exceptions → write `status=FAILURE, error=str(exc)` to DB
+
+- [ ] Update `app/celery_app.py` — uncomment `"app.services.simulation_service"` include
+
+- [ ] Add `app/schemas/simulation.py`:
+  - `SimulationRequest`: tickers (list, uppercase, dedup, pattern `^[A-Za-z0-9.^=\-]{1,20}$`), weights (non-negative, sum 1.0±0.001), period (`_AnalysisPeriod`), initial_investment, years (1–30), n_simulations (1–1000), annual_contribution (≥0), seed (optional), portfolio_id (optional UUID) — decision 53
+  - `SimulationResponse`: percentile_outcomes, sample_paths, mean_final_value, probability_of_profit, probability_of_doubling, final_value_distribution, initial_investment, years, n_simulations, annual_contribution
+  - `SimulationSubmitResponse`: simulation_id (UUID), task_id (str), status
+  - `SimulationStatusResponse`: simulation_id, status, result (nullable), error (nullable)
+
+- [ ] Add `app/api/v1/simulation.py` (decision 39, 48, 49):
+  - `POST /api/v1/simulation/monte-carlo` — `CurrentUser` required; validate request; validate `portfolio_id` ownership if provided (decision 49); INSERT `SimulationResult(PENDING)`; dispatch `run_simulation.delay(simulation_id, params)`; on dispatch failure → log + 500; return `SimulationSubmitResponse`
+  - `GET /api/v1/simulation/{simulation_id}` — `CurrentUser` required; SELECT WHERE id=? AND user_id=? (decision 48); 404 if not found or wrong user; return `SimulationStatusResponse`
+
+- [ ] Register simulation router in `app/main.py`
+
+- [ ] Write `tests/test_simulation.py` (18 tests):
+  - **Math unit tests (no live data, deterministic fixtures):**
+    - Same seed → same results (two identical calls produce identical output)
+    - Different seeds → different results
+    - t-distribution draws differ from normal at same params (fat-tail verification)
+    - 0% volatility → all paths equal `initial_investment * (1 + daily_mu)^t` within float epsilon
+    - Contribution count: `years=10, annual_contribution=1000` → exactly 10 injections (verify `sum(path[-1] - no_contrib_path[-1]) ≈ 10000`)
+    - `probability_of_profit` accounts for contributions (not just initial_investment)
+    - `sample_paths`: exactly 20 paths returned
+    - `percentile_outcomes`: keys are exactly {5, 10, 25, 50, 75, 90, 95}
+  - **Pydantic validation tests:**
+    - `n_simulations > 1000` → ValueError/422
+    - `years > 30` → ValueError/422
+    - `years < 1` → ValueError/422
+    - Weights don't sum to 1.0 → 422
+    - Negative weight → 422
+  - **API integration tests (hermetic, mock Celery dispatch):**
+    - `POST /simulation/monte-carlo` unauthenticated → 401
+    - `POST /simulation/monte-carlo` valid request → 200, returns `{simulation_id, task_id, status=PENDING}`
+    - `GET /simulation/{id}` unauthenticated → 401
+    - `GET /simulation/{id}` wrong user → 404
+    - `GET /simulation/{id}` PENDING status → null results
+    - `GET /simulation/{id}` unknown ID → 404
+
+- [ ] Run `/review` before marking Phase 5 complete — **financial math must be correct**
+
+**NOT in scope (Phase 5):** Comparison endpoint (two simulations in one response), list/delete/history endpoints, simulation caching (Redis), log-return simulation, ruin floor guard, rate limiting, Celery beat orphan cleanup (→ TODO-4).
+
+**Known limitation:** With `df=5` t-distribution and high `annual_volatility`, it is theoretically possible (probability < 0.1%) to draw a daily return < -100%, producing a negative portfolio value. At MVP scale this is not guarded (floor not applied). Document in `run_monte_carlo()` docstring.
+
+**QoL (deferred):** Comparison endpoint: run two simulations (current portfolio vs. rebalanced) and return both in one response.
 
 ---
 

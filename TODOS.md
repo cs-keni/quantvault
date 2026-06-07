@@ -49,3 +49,33 @@ Items considered during `/plan-eng-review` sessions that were explicitly deferre
 **Context:** Deferred from Phase 4 `/plan-eng-review` (2026-06-06). Decision: keep Celery for Phase 4 to maintain consistency. Re-evaluate after Phase 6 once you have real benchmark data for all three task types.
 
 **Depends on:** Phase 5 + Phase 6 implementation complete.
+
+---
+
+## TODO-4: Orphan PENDING Simulation Cleanup
+
+**What:** A periodic Celery beat task (every 5 minutes) that queries `SimulationResult WHERE status='PENDING' AND created_at < now() - interval '10 minutes'` and marks them `status='FAILURE', error='Dispatch timeout — Celery broker was unreachable at submission time'`.
+
+**Why:** When `POST /simulation/monte-carlo` commits the `SimulationResult(PENDING)` row but Celery dispatch fails (Redis broker down), the row stays PENDING forever. Users see their simulation as "running" but it never completes. At MVP scale this is near-zero probability, but orphaned rows accumulate silently over time.
+
+**Pros:** Prevents user confusion from simulations stuck in PENDING; simple Celery beat task with a clear threshold.
+**Cons:** Adds a periodic task; introduces a hardcoded orphan threshold (10 minutes) that may need tuning.
+
+**Context:** Accepted as best-effort for Phase 5 (`/plan-eng-review` 2026-06-07, D9 decision). The failure mode is visible (user can re-submit) but sticky. Implementation: Celery beat schedule + a `cleanup_orphaned_simulations` task in `simulation_service.py`.
+
+**Depends on:** Phase 5 (SimulationResult model) complete.
+
+---
+
+## TODO-5: Vectorized Fast-Path for Zero-Contribution Monte Carlo
+
+**What:** When `annual_contribution == 0`, replace the Python for-loop over `trading_days` with a single vectorized call: `portfolio_values = initial_investment * np.cumprod(1 + returns_matrix, axis=0)`.
+
+**Why:** The current loop does 252–7560 Python-level iterations (each triggering a NumPy vector multiply). The zero-contribution case can be expressed as a single `np.cumprod()` call, eliminating Python overhead for the common case.
+
+**Pros:** ~10x faster for zero-contribution simulations; no change to output values.
+**Cons:** Two code paths for essentially the same logic; adds an `if annual_contribution == 0` branch.
+
+**Context:** Current loop performance is ~15–40ms for maximum parameters (1000 simulations, 30 years), which is well within the 55s Celery soft time limit. Optimization is quality improvement, not a fix. Deferred from Phase 5 `/plan-eng-review` (2026-06-07).
+
+**Depends on:** Phase 5 complete.
