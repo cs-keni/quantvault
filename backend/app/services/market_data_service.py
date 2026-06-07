@@ -10,6 +10,7 @@ import io
 import json
 import logging
 from collections.abc import Callable
+from datetime import date, timedelta
 from typing import Annotated, Any, TypeVar
 
 import pandas as pd
@@ -113,6 +114,38 @@ class MarketDataService:
         download_arg: str | list[str] = tickers[0] if len(tickers) == 1 else tickers
         raw: pd.DataFrame = yf.download(
             download_arg, period=period, progress=False, auto_adjust=True
+        )
+
+        if raw.empty:
+            return pd.DataFrame(columns=tickers), list(tickers)
+
+        if isinstance(raw.columns, pd.MultiIndex):
+            close: pd.DataFrame = raw["Close"]
+        else:
+            close = raw[["Close"]].rename(columns={"Close": tickers[0]})
+
+        returns: pd.DataFrame = close.pct_change().iloc[1:]
+        return self._apply_data_quality(returns, tickers)
+
+    def _fetch_and_process_returns_by_date(
+        self,
+        tickers: list[str],
+        start: date,
+        end: date,
+    ) -> tuple[pd.DataFrame, list[str]]:
+        """Sync: download date-bounded OHLCV, compute returns, apply data quality.
+
+        Yahoo Finance's `end` parameter is exclusive, so this method always
+        requests through `end + 1 calendar day` to include the user's requested
+        final trading day when it exists.
+        """
+        download_arg: str | list[str] = tickers[0] if len(tickers) == 1 else tickers
+        raw: pd.DataFrame = yf.download(
+            download_arg,
+            start=start.isoformat(),
+            end=(end + timedelta(days=1)).isoformat(),
+            progress=False,
+            auto_adjust=True,
         )
 
         if raw.empty:

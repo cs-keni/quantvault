@@ -10,7 +10,7 @@ celery_app = Celery(
         # Task modules are registered here as each lands:
         "app.services.optimization_service",
         "app.services.simulation_service",
-        # "app.services.backtest_service",       — backtesting engine (Phase 6)
+        "app.services.backtest_service",
     ],
 )
 

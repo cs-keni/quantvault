@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import analysis, auth, market_data, portfolios, simulation
+from app.api.v1 import analysis, auth, backtest, market_data, portfolios, simulation
 from app.core.config import settings
 
 
@@ -46,8 +46,12 @@ def create_app() -> FastAPI:
         prefix=f"{settings.API_V1_PREFIX}/simulation",
         tags=["simulation"],
     )
+    app.include_router(
+        backtest.router,
+        prefix=f"{settings.API_V1_PREFIX}/portfolios",
+        tags=["backtest"],
+    )
     # Remaining routers register here as each api/v1/* module lands:
-    # from app.api.v1 import backtest
 
     return app
 

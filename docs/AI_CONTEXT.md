@@ -67,7 +67,7 @@ for the full list with rationale. The ones that change *how code is written*:
   `GET /api/v1/analysis/frontier/{task_id}` (non-blocking state poll; FAILURE
   must return `error=str(result.info)`). See PHASES.md decisions 28–38 for full
   rationale.
-- **Monte Carlo simulation (Phase 5 — implemented, pending `/review`)**:
+- **Monte Carlo simulation (Phase 5 — complete)**:
   `simulation_service.py` owns all MC math and the Celery task `run_simulation`.
   Results are persisted in PostgreSQL `simulation_results`, not Redis/Celery
   result TTL: POST creates `PENDING`, Celery writes `SUCCESS`/`FAILURE`, and GET
@@ -80,6 +80,20 @@ for the full list with rationale. The ones that change *how code is written*:
   Dropped tickers from yfinance are task FAILURE, not silent weight
   re-normalization. Celery DB writes use `asyncio.run()` with a fresh async
   engine per write.
+- **Backtesting engine (Phase 6 — implemented, pending `/review`)**:
+  `backtest_service.py` owns the pure math engine and Celery task. Results are
+  persisted on `backtest_results`; POST creates `PENDING`, Celery writes
+  `SUCCESS`/`FAILURE`, and GET filters by `id AND user_id`. CAGR is true
+  terminal CAGR `(final/initial)^(252/n_days)-1`, not the mean-daily estimate
+  from `calculate_portfolio_metrics()`. `NEVER` rebalance is true buy-and-hold:
+  `initial * Σ(w_i * Π(1+r_i))`; monthly/quarterly/annual rebalance applies the
+  boundary-day return before resetting target weights. Benchmark data comes
+  from `portfolio.benchmark_ticker` and is fetched separately from holdings.
+  yfinance date-range fetches pass `end_date + 1 day` because `end` is
+  exclusive. Calmar is `None` when max drawdown is zero. POST preflights data
+  availability before inserting PENDING; late-start or early-end gaps over 5
+  business days return 422. Celery DB writes copy the Phase 5 `NullPool` +
+  `asyncio.run()` bridge; extract a shared helper only after Phase 6 review.
 - **`portfolio_to_weights(holdings) -> tuple[list[str], np.ndarray]`** is the
   single Decimal→float conversion point, centralized in `portfolio_service.py`.
 - **`User.default_portfolio_id` FK**, not `Portfolio.is_default bool` — avoids

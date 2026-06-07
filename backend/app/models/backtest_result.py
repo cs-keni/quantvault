@@ -14,6 +14,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.portfolio import Portfolio
+    from app.models.user import User
 
 
 class RebalanceFrequency(enum.StrEnum):
@@ -23,6 +24,14 @@ class RebalanceFrequency(enum.StrEnum):
     QUARTERLY = "QUARTERLY"
     ANNUALLY = "ANNUALLY"
     NEVER = "NEVER"
+
+
+class BacktestStatus(enum.StrEnum):
+    """Lifecycle state for an asynchronous backtest run."""
+
+    PENDING = "PENDING"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
 
 
 class BacktestResult(Base):
@@ -36,6 +45,9 @@ class BacktestResult(Base):
     __tablename__ = "backtest_results"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     portfolio_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("portfolios.id", ondelete="CASCADE"),
@@ -48,14 +60,22 @@ class BacktestResult(Base):
     rebalance_frequency: Mapped[RebalanceFrequency] = mapped_column(
         SQLEnum(RebalanceFrequency, name="rebalance_frequency", native_enum=True), nullable=False
     )
+    status: Mapped[BacktestStatus] = mapped_column(
+        SQLEnum(BacktestStatus, name="backtest_status", native_enum=True), nullable=False
+    )
     initial_investment: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    tickers: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    weights: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
 
-    tearsheet: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    daily_returns: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
-    equity_curve: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    tearsheet: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    daily_returns: Mapped[list[float] | None] = mapped_column(JSONB, nullable=True)
+    equity_curve: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="backtest_results")
+    user: Mapped["User"] = relationship("User", back_populates="backtest_results")

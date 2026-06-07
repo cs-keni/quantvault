@@ -322,6 +322,7 @@
 
 ## Phase 6 — Backtesting Engine
 > **`/plan-eng-review` completed 2026-06-07** — architecture locked in decisions 56–70 above.
+> **Implementation completed 2026-06-07** — T1–T7 done; pending mandatory `/review`.
 > Run `/review` before marking Phase 6 complete (financial math phase, non-negotiable).
 
 ### Architecture locked (do not revisit without explicit user approval)
@@ -351,13 +352,13 @@
 
 ### Implementation tasks
 
-- [ ] **T1 — Migration**: add `backtest_status` enum + columns to `backtest_results`; `user_id` NOT NULL after backfill via `portfolio_id → portfolios.user_id`; nullable result blobs
-- [ ] **T2 — Schema**: `BacktestRequest` (start_date, end_date, rebalance_frequency, strategy_name?), `BacktestTearsheet` (cagr, sharpe, sortino, calmar: Optional[float], beta, alpha, win_rate, max_drawdown, rebalance_count, benchmark_cagr), `BacktestStatusResponse`, `BacktestSummary` (no equity_curve/daily_returns)
-- [ ] **T3 — MarketDataService**: add `_fetch_and_process_returns_by_date(tickers, start, end)` — sync, wraps yfinance with `end=end_date + timedelta(days=1)`, same data-quality pipeline as existing `_fetch_and_process_returns()`
-- [ ] **T4 — `run_backtest_engine()`**: pure function (no I/O), takes returns DataFrames (portfolio + benchmark) + weights + dates + rebalance_frequency; returns tearsheet dict + equity_curve + daily_returns
-  - Initialize `current_shares = weights * initial_investment / prices_day0` — day-1 allocation
+- [x] **T1 — Migration**: add `backtest_status` enum + columns to `backtest_results`; `user_id` NOT NULL after backfill via `portfolio_id → portfolios.user_id`; nullable result blobs
+- [x] **T2 — Schema**: `BacktestRequest` (start_date, end_date, rebalance_frequency, strategy_name?), `BacktestTearsheet` (cagr, sharpe, sortino, calmar: Optional[float], beta, alpha, win_rate, max_drawdown, rebalance_count, benchmark_cagr), `BacktestStatusResponse`, `BacktestSummary` (no equity_curve/daily_returns)
+- [x] **T3 — MarketDataService**: add `_fetch_and_process_returns_by_date(tickers, start, end)` — sync, wraps yfinance with `end=end_date + timedelta(days=1)`, same data-quality pipeline as existing `_fetch_and_process_returns()`
+- [x] **T4 — `run_backtest_engine()`**: pure function (no I/O), takes returns DataFrames (portfolio + benchmark) + weights + dates + rebalance_frequency; returns tearsheet dict + equity_curve + daily_returns
+  - Initialize per-asset dollar buckets as `weights * initial_investment` — returns-based equivalent of day-1 price allocation
   - NEVER: `equity_t = initial_investment × Σ(w_i × Π(1+r_{i,s}))` (decision 66)
-  - MONTHLY/QUARTERLY/ANNUALLY: at first trading day of each new period, reset `current_shares` to `current_value × weights / prices_t` — apply AFTER day's return
+  - MONTHLY/QUARTERLY/ANNUALLY: at first trading day of each new period, apply the day's return first, then reset asset buckets to `current_value × weights`
   - Benchmark: `benchmark_equity_t = initial_investment × Π(1 + r_bench_s for s=1..t)` (buy-and-hold, single asset)
   - CAGR: `(final_value / initial_investment)^(252/n_trading_days) − 1` (decision 63)
   - Sharpe, Sortino: reuse `calculate_sharpe()`, `calculate_sortino()` from risk_service.py
@@ -367,12 +368,12 @@
   - Calmar: `cagr / abs(max_drawdown)` if `max_drawdown != 0` else `None` (decision 64)
   - Win rate: `(daily_returns > 0).mean()` — documented as positive-return fraction (decision 68)
   - equity_curve: `[{"date": d, "portfolio": v, "benchmark": b}, ...]` aligned by trading day
-- [ ] **T5 — Celery task `run_backtest`**: `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` — same timeout + NullPool + asyncio.run() pattern as Phase 5 (copied, not shared); write SUCCESS/FAILURE to DB; catch SoftTimeLimitExceeded + all exceptions with wrapped error DB writes
-- [ ] **T6 — API endpoints**:
+- [x] **T5 — Celery task `run_backtest`**: `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` — same timeout + NullPool + asyncio.run() pattern as Phase 5 (copied, not shared); write SUCCESS/FAILURE to DB; catch SoftTimeLimitExceeded + all exceptions with wrapped error DB writes
+- [x] **T6 — API endpoints**:
   - `POST /api/v1/portfolios/{portfolio_id}/backtests` — `CurrentUser`; validate portfolio ownership; call `portfolio_to_weights()`; enforce weight sum; fetch `portfolio.benchmark_ticker`; data availability check (fail fast if >5 trading days off); insert PENDING; `.delay()`; return submit response
   - `GET /api/v1/portfolios/{portfolio_id}/backtests/{backtest_id}` — `CurrentUser`; filter `WHERE id=? AND user_id=?`; return full result
   - `GET /api/v1/portfolios/{portfolio_id}/backtests` — `CurrentUser`; return `BacktestSummary` list (no equity_curve, no daily_returns)
-- [ ] **T7 — Tests** (`tests/test_backtest.py`):
+- [x] **T7 — Tests** (`tests/test_backtest.py`):
   - Math unit tests (deterministic fixtures):
     - `run_backtest_engine` with constant daily-return fixtures → verify CAGR, Sharpe, drawdown by hand
     - NEVER rebalance: `equity[-1] == initial × sum(w_i × (1+r_i)^n_days)`, `rebalance_count == 0`
@@ -467,11 +468,11 @@
 - [ ] Efficient frontier lower bound = min-variance return, not min individual return (Phase 4)
 - [ ] All optimizer results checked for `result.success` before appending (Phase 4)
 - [ ] Beta uses `_compute_beta` shared core — no duplicate math (Phase 3/6)
-- [ ] Backtest initializes day-1 allocation from prices × weights before loop (Phase 6, decision 6)
-- [ ] Backtest CAGR uses `(end/start)^(252/n_days)−1`, NOT `(1+mean_daily)^252−1` (Phase 6, decision 63)
-- [ ] NEVER rebalance uses per-asset cumulative return sum, NOT daily-rebalanced cumprod (Phase 6, decision 66)
-- [ ] Calmar returns `None` when max_drawdown == 0 (Phase 6, decision 64)
-- [ ] yfinance `end` date is `end_date + timedelta(days=1)` (Phase 6, decision 67)
+- [x] Backtest initializes asset buckets from `initial_investment × weights` before the first return (returns-based equivalent of price × weights; Phase 6)
+- [x] Backtest CAGR uses `(end/start)^(252/n_days)−1`, NOT `(1+mean_daily)^252−1` (Phase 6, decision 63)
+- [x] NEVER rebalance uses per-asset cumulative return sum, NOT daily-rebalanced cumprod (Phase 6, decision 66)
+- [x] Calmar returns `None` when max_drawdown == 0 (Phase 6, decision 64)
+- [x] yfinance `end` date is `end_date + timedelta(days=1)` (Phase 6, decision 67)
 - [ ] `^TNX` yield divided by 100 before use as risk-free rate (Phase 2)
 
 ---

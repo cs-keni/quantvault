@@ -5,36 +5,42 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 6 — Backtesting Engine architecture locked, ready to implement)
+## State as of 2026-06-07 (Phase 6 — Backtesting Engine implemented, pending `/review`)
 
-`/plan-eng-review` complete. Architecture locked in PHASES.md decisions 56–70. Phase 6 is **not started** — implement T1 through T7 in order.
+Phase 6 T1–T7 are implemented and verified, but the mandatory financial-math `/review` checkpoint has **not** been run yet. Do not mark Phase 6 complete until that review passes.
 
-**Critical gotchas for Phase 6 (do not skip):**
-- CAGR = `(final_value/initial_investment)^(252/n_trading_days)−1`. Do NOT pass this to `calculate_portfolio_metrics()` — that function returns `(1+mean_daily)^252−1` (wrong for backtesting).
-- NEVER rebalance: `equity_t = initial_investment × Σ(w_i × Π(1+r_{i,s}))`. NOT `cumprod(1 + daily_weighted_return)` — the latter secretly daily-rebalances.
-- yfinance `end` parameter is exclusive: always pass `end_date + timedelta(days=1)`.
-- Data availability check must be SYMMETRIC: late-start >5 trading days AND early-end >5 trading days both → FAILURE before Celery dispatch.
-- Benchmark source: `portfolio.benchmark_ticker` (not hardcoded SPY). If `benchmark_ticker` is also in portfolio holdings, use a separate `yf.download()` call for the benchmark.
-- Calmar field is `Optional[float]`, returns `None` when max_drawdown == 0.
-- Copy the NullPool + asyncio.run() DB bridge pattern from `simulation_service.py` into `backtest_service.py`. Do NOT modify `simulation_service.py` during Phase 6 work.
-- Migration must make `tearsheet`, `daily_returns`, `equity_curve` nullable (PENDING rows have no results yet) AND backfill `user_id` via `UPDATE backtest_results br SET user_id = p.user_id FROM portfolios p WHERE br.portfolio_id = p.id`.
+**Implemented files:**
+- `app/services/backtest_service.py` — `run_backtest_engine()` pure math plus `run_backtest` Celery task.
+- `app/schemas/backtest.py` — submit/status/summary schemas, including `calmar: Optional[float]`.
+- `app/api/v1/backtest.py` — portfolio-scoped POST submit, GET status, and GET list endpoints.
+- `alembic/versions/20260607_2330_7d8e9f012345_add_backtest_status_columns.py` — adds status/task/error/audit columns, backfills `user_id`, and makes result JSON blobs nullable.
+- `tests/test_backtest.py` — deterministic math tests, API auth/ownership/state tests, and skipped live smoke.
 
-**New files to create:**
-- `app/services/backtest_service.py`
-- `app/schemas/backtest.py`
-- `app/api/v1/backtest.py`
-- `alembic/versions/<ts>_add_backtest_status_columns.py`
+**Modified files:**
+- `app/models/backtest_result.py`, `app/models/user.py`, `app/models/__init__.py` — `BacktestStatus`, user FK/audit columns, nullable result blobs, relationship wiring.
+- `app/services/market_data_service.py` — `_fetch_and_process_returns_by_date(tickers, start, end)` sync helper; uses yfinance `end=end_date + 1 day`.
+- `app/main.py` — registers the backtest router under `/api/v1/portfolios`.
+- `app/celery_app.py` — includes `app.services.backtest_service`.
 
-**Files to modify:**
-- `app/services/market_data_service.py` — add `_fetch_and_process_returns_by_date(tickers, start, end)`
-- `app/main.py` — register backtest router
-- `app/celery_app.py` — add `"app.services.backtest_service"` to includes
+**Verification after implementation:**
+- `cd backend && .venv/bin/ruff check app tests/test_backtest.py alembic` — clean
+- `cd backend && .venv/bin/mypy app` — clean (39 source files)
+- `cd backend && .venv/bin/pytest tests/test_backtest.py -q` — 18 passed, 1 skipped
+- `cd backend && .venv/bin/pytest -q` — 152 passed, 3 skipped
+- `cd backend && .venv/bin/alembic upgrade head` — applied `9b1c2d3e4f50 -> 7d8e9f012345`
+- `cd backend && .venv/bin/alembic check` — no drift
 
-**Existing `BacktestResult` model** (`app/models/backtest_result.py`): has `RebalanceFrequency` enum (MONTHLY, QUARTERLY, ANNUALLY, NEVER), `portfolio_id`, `strategy_name`, `start_date`, `end_date`, `rebalance_frequency`, `initial_investment`, `tearsheet`, `daily_returns`, `equity_curve`. Missing: `status`, `task_id`, `error`, `user_id`, `tickers`, `weights`. These are added via migration.
+**Critical implementation notes:**
+- CAGR is true terminal CAGR: `(final_value / initial_investment) ** (252 / n_trading_days) - 1`. The engine does not call `calculate_portfolio_metrics()` for CAGR.
+- NEVER rebalance is true buy-and-hold: `initial * Σ(w_i * Π(1+r_i))`, not `cumprod(1 + weighted_daily_return)`.
+- Rebalanced modes apply the boundary-day return first, then reset allocation to target weights for the next trading day.
+- Benchmark data is fetched separately from the portfolio holdings, using `portfolio.benchmark_ticker` with no hardcoded SPY assumption.
+- FastAPI POST preflights portfolio and benchmark market data before inserting PENDING; late-start or early-end gaps over 5 business days return 422 instead of creating orphan work.
+- Celery DB writes use the copied `NullPool` + `asyncio.run()` bridge. `simulation_service.py` was intentionally not touched.
 
-## State as of 2026-06-07 (Phase 5 — Monte Carlo implemented, pending `/review`)
+## State as of 2026-06-07 (Phase 5 — Monte Carlo complete ✅)
 
-Phase 5 code is implemented and verified, but the required financial-math `/review` checkpoint has **not** been run yet, so do not mark Phase 5 complete until that review passes.
+Phase 5 code is implemented, reviewed, and marked complete. `/review` found 6 issues; all were fixed.
 
 **Implemented files:**
 - `app/models/simulation_result.py` — `SimulationResult` ORM model plus native `simulation_status` enum (`PENDING`, `SUCCESS`, `FAILURE`), required `user_id`, nullable `portfolio_id`, audit inputs, task id, result blob, and error field.
@@ -45,10 +51,10 @@ Phase 5 code is implemented and verified, but the required financial-math `/revi
 - `app/main.py` and `app/celery_app.py` — router and task registration.
 - `tests/test_simulation.py` — 19 tests covering math invariants, validation, and DB-backed API state behavior with Celery dispatch mocked.
 
-**Verification after implementation:**
+**Verification after review fixes:**
 - `cd backend && .venv/bin/ruff check app tests alembic` — clean
-- `cd backend && .venv/bin/mypy app` — clean (36 source files)
-- `cd backend && .venv/bin/pytest -q` — 132 passed, 2 skipped
+- `cd backend && .venv/bin/mypy app` — clean
+- `cd backend && .venv/bin/pytest -q` — 134 passed, 2 skipped
 - `cd backend && .venv/bin/alembic upgrade head` — migration applied locally
 - `cd backend && .venv/bin/alembic check` — no drift
 
@@ -60,6 +66,7 @@ Phase 5 code is implemented and verified, but the required financial-math `/revi
 - Celery task rejects dropped tickers as FAILURE instead of silently re-normalizing weights.
 - Celery DB writes use `asyncio.run()` with a fresh async engine per write, matching decision 44 and avoiding event-loop/pool reuse.
 - The first Alembic verification caught a duplicate enum creation bug; migration now manually creates the enum once and references it with `postgresql.ENUM(..., create_type=False)`.
+- Review fixes applied arithmetic annual return in `run_simulation`, a zero floor on portfolio values, truncated error strings, wrapped error-handler DB writes, a 32-bit seed cap, and `NullPool` for the Celery DB bridge.
 
 ## State as of 2026-06-07 (Phase 4 — Efficient Frontier complete ✅)
 

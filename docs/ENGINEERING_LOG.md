@@ -3,6 +3,42 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 6: Backtesting Engine implementation
+
+Commit: pending
+
+Implemented Phase 6 Backtesting Engine according to PHASES.md decisions 56–70. Phase 6 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
+
+**Files changed:**
+- `app/models/backtest_result.py`, `app/models/user.py`, `app/models/__init__.py` — `BacktestStatus`, user/audit/task columns, nullable result blobs, relationship wiring.
+- `alembic/versions/20260607_2330_7d8e9f012345_add_backtest_status_columns.py` — adds backtest status/audit columns, backfills `user_id`, and preserves existing result rows as SUCCESS.
+- `app/schemas/backtest.py` — request/status/summary schemas; `BacktestSummary` intentionally excludes `equity_curve` and `daily_returns`.
+- `app/services/market_data_service.py` — `_fetch_and_process_returns_by_date()` with yfinance exclusive-end handling.
+- `app/services/backtest_service.py` — pure `run_backtest_engine()` plus `run_backtest` Celery task and copied NullPool DB bridge.
+- `app/api/v1/backtest.py` — portfolio-scoped submit/status/list endpoints with auth, ownership checks, weight validation, and pre-dispatch data availability checks.
+- `app/main.py`, `app/celery_app.py` — route/task registration.
+- `tests/test_backtest.py` — 7 deterministic math tests, 11 DB-backed API tests, and 1 skipped live-network smoke.
+
+**Implementation details:**
+- CAGR uses true terminal return: `(final_value / initial_investment) ** (252 / n_trading_days) - 1`.
+- `NEVER` rebalance is true buy-and-hold via per-asset cumulative returns, not daily-rebalanced weighted-return compounding.
+- Rebalanced modes apply each boundary day's return before resetting asset buckets to target weights.
+- Benchmark returns are fetched separately using `portfolio.benchmark_ticker`.
+- Calmar is `None` when max drawdown is zero; Jensen alpha uses the current/fallback risk-free rate as a static approximation.
+- POST preflights market data and rejects late-start or early-end gaps over 5 business days before inserting PENDING.
+
+**Tests / checks:**
+- `cd backend && .venv/bin/ruff check app tests/test_backtest.py alembic` — clean
+- `cd backend && .venv/bin/mypy app` — clean (39 source files)
+- `cd backend && .venv/bin/pytest tests/test_backtest.py -q` — 18 passed, 1 skipped
+- `cd backend && .venv/bin/pytest -q` — 152 passed, 3 skipped
+- `cd backend && .venv/bin/alembic upgrade head` — applied `9b1c2d3e4f50 -> 7d8e9f012345`
+- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
+- `gbrain sync` — blocked: gbrain database lacks `vector` extension / `sources` table; CLI suggested `gbrain apply-migrations --yes`
+
+**Bug caught during verification:**
+- Initial constant-return CAGR test used `(1 + weighted_daily_return)^n`, which is daily-rebalanced behavior. Corrected it to the locked buy-and-hold formula: `sum(w_i * (1 + r_i)^n)`.
+
 ## 2026-06-07 — Phase 6: /plan-eng-review complete, architecture locked (decisions 56–70)
 
 Commit: eec0ec6

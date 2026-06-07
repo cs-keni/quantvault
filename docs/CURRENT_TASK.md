@@ -14,21 +14,22 @@
 
 Gates: 134 passed, 2 skipped, ruff clean, mypy clean.
 
-## Next
+## Current
 
-**Phase 6 — Backtesting Engine** — `/plan-eng-review` complete 2026-06-07 (decisions 56–70 locked in PHASES.md)
+**Phase 6 — Backtesting Engine** implemented 2026-06-07, pending mandatory `/review`
 
-Architecture decisions locked:
-- True terminal CAGR `(end/start)^(252/n_days)−1` (not mean-daily estimate)
-- NEVER rebalance = true buy-and-hold: `Σ(w_i × cumreturn_i)` (not daily-rebalanced cumprod)
-- Calmar = `Optional[float]`, `None` when max_drawdown == 0
-- Benchmark = `portfolio.benchmark_ticker` with SPY-collision dedup
-- Copy NullPool bridge from simulation_service.py (do NOT touch simulation_service.py)
-- yfinance `end=end_date + timedelta(days=1)` (exclusive)
-- Data availability check: both late-start AND early-end >5 trading days → FAILURE
-- Migration backfills `user_id` from `portfolio_id → portfolios.user_id`; makes result blobs nullable
+Implemented T1–T7 from PHASES.md:
+1. Migration adds `backtest_status`, async task/audit columns, nullable result blobs, and `user_id` backfill from `portfolios.user_id`.
+2. Backtest schemas cover submit/status/summary responses; summary intentionally excludes `equity_curve` and `daily_returns`.
+3. `MarketDataService._fetch_and_process_returns_by_date()` fetches with `end_date + 1 day` because yfinance `end` is exclusive.
+4. `run_backtest_engine()` owns pure backtest math: true terminal CAGR, true NEVER buy-and-hold, rebalance-after-boundary-day timing, Optional Calmar, Jensen alpha, and aligned benchmark comparison.
+5. `run_backtest` Celery task uses the copied NullPool + `asyncio.run()` DB bridge and writes SUCCESS/FAILURE rows.
+6. Portfolio-scoped endpoints are live under `/api/v1/portfolios/{portfolio_id}/backtests`.
+7. `tests/test_backtest.py` covers deterministic math, auth/ownership, PENDING/null result shape, and summary-list behavior.
 
-Implementation tasks: T1 (migration) → T2 (schemas) → T3 (market_data_service date-range method) → T4 (run_backtest_engine) → T5 (Celery task) → T6 (API endpoints) → T7 (tests)
+Gates: 152 passed, 3 skipped, ruff clean, mypy clean, `alembic upgrade head` applied, `alembic check` clean.
+
+**Do not mark Phase 6 complete yet.** Run `/review` first because Phase 6 is a financial-math phase.
 
 ---
 
