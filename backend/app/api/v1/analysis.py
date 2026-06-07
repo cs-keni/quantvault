@@ -7,7 +7,7 @@ from typing import Annotated
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -112,6 +112,7 @@ async def _compute_metrics(
 @router.post("/metrics", response_model=PortfolioMetricsResponse)
 async def compute_metrics_adhoc(
     payload: MetricsRequest,
+    current_user: CurrentUser,
     market_service: _MarketDep,
 ) -> PortfolioMetricsResponse:
     """Compute full risk/return metrics for an ad-hoc portfolio (no DB save required).
@@ -144,7 +145,7 @@ async def compute_metrics_for_portfolio(
     db: _DBDep,
     market_service: _MarketDep,
     period: str = "1y",
-    confidence: float = 0.95,
+    confidence: Annotated[float, Query(gt=0, lt=1)] = 0.95,
 ) -> PortfolioMetricsResponse:
     """Compute full risk/return metrics for a saved portfolio."""
     if period not in _VALID_PERIODS:

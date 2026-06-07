@@ -3,6 +3,51 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 3: /review findings and fixes
+
+Commit: TBD (this entry)
+
+Manual checklist pass (direct-to-main workflow) against the Phase 3 diff. Six bugs fixed across three categories: correctness, security, and data safety.
+
+**Bugs fixed:**
+
+1. **`portfolios.py:96` — `update_portfolio` missing None check after reload (correctness)**
+   - After `db.commit()`, re-fetching with `get_portfolio()` returns `Portfolio | None`. The result was passed directly to `PortfolioOut.model_validate()` without a None guard, identical to the already-fixed bug in `create_portfolio`. In an extreme concurrent-delete race the response would be a Pydantic 500 instead of the expected 404.
+   - Fix: renamed variable to `reloaded`, added `assert reloaded is not None` (matching `create_portfolio` pattern).
+
+2. **`analysis.py:147` — GET metrics endpoint accepted `confidence=0` (correctness → IndexError)**
+   - `confidence: float = 0.95` had no bounds. With `confidence=0.0`, `(1-0)*N = N`, `sorted_returns[N]` raises IndexError (500). The POST endpoint's `MetricsRequest` correctly used `Field(gt=0, lt=1)`.
+   - Fix: changed to `Annotated[float, Query(gt=0, lt=1)] = 0.95` — FastAPI now returns 422 for out-of-range values before handler code runs.
+
+3. **`risk_service.py` — `calculate_correlation_matrix` propagated NaN (data safety → JSON 500)**
+   - A ticker with zero variance over the requested window produces NaN from `pd.DataFrame.corr()`. `corr.values.tolist()` passes NaN through Pydantic's `list[list[float]]` field, then FastAPI's JSON encoder raises `ValueError: Out of range float values are not JSON compliant`.
+   - Fix: `corr.fillna(0.0)` then `np.fill_diagonal(..., 1.0)` to restore self-correlation. Test added.
+
+4. **`analysis.py` — `POST /analysis/metrics` had no auth (security — CRITICAL)**
+   - The ad-hoc metrics endpoint accepted requests without a `CurrentUser` dependency. Any unauthenticated caller could trigger yfinance fetches for up to 50 tickers with `period=max` at no cost.
+   - Fix: added `current_user: CurrentUser` parameter. Detected by security specialist subagent.
+
+5. **`schemas/portfolio.py` — `MetricsRequest.benchmark_ticker` had no pattern constraint (security — MEDIUM)**
+   - `AdHocHolding.ticker` already had `pattern=r"^[A-Za-z0-9.^=\-]{1,20}$"` to prevent Redis key injection (added in Phase 2 /review). `benchmark_ticker` had only `max_length=20` — inconsistency that left the same injection surface open.
+   - Fix: applied the same pattern constraint to `benchmark_ticker`.
+
+6. **`schemas/portfolio.py` — ad-hoc POST path silently re-normalized mismatched weights (correctness)**
+   - The saved-portfolio path runs `_validate_weights()` to reject submissions where weights don't sum to 1.0. The ad-hoc POST path had no such check — `[0.3, 0.3]` would silently compute metrics for a `[0.5, 0.5]` portfolio.
+   - Fix: added `@model_validator(mode="after")` to `MetricsRequest` that rejects weight sum outside `1.0 ± 0.01`.
+
+**New tests:**
+- `tests/test_analysis.py` (new file, 14 tests): auth, 404, ownership isolation, empty-portfolio 422, `confidence=0` 422, invalid period — all analysis endpoints.
+- `tests/test_risk_metrics.py`: added `test_correlation_matrix_zero_variance_fills_nan` for the NaN-fill fix.
+
+**Informational (not fixed — design/future):**
+- `peak_date: str | int` in `PortfolioMetricsResponse` exposes implementation detail; the `int` path only fires on ndarray input which never comes from the saved-portfolio route. Track for Phase 4 cleanup.
+- `_compute_metrics` is a coordination monolith; will need to expose sub-pipelines cleanly when Phase 4 (efficient frontier) reuses the returns/weights pipeline.
+- `calculate_beta_from_ticker` lives in `portfolio_service.py` but imports from two other services; natural refactor point when Phase 4 needs beta.
+
+**Final gate:** 102 passed, 2 skipped, ruff clean.
+
+---
+
 ## 2026-06-06 — Phase 3: Portfolio Service and Risk Metrics
 
 Commit: cae7d23

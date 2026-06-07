@@ -93,8 +93,9 @@ async def update_portfolio(
     if portfolio is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
     await db.commit()
-    portfolio = await portfolio_service.get_portfolio(db, portfolio_id, current_user.id)
-    return PortfolioOut.model_validate(portfolio)
+    reloaded = await portfolio_service.get_portfolio(db, portfolio_id, current_user.id)
+    assert reloaded is not None
+    return PortfolioOut.model_validate(reloaded)
 
 
 @router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)

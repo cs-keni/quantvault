@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.holding import AssetClass
 
@@ -94,7 +94,20 @@ class MetricsRequest(BaseModel):
     holdings: Annotated[list[AdHocHolding], Field(min_length=1, max_length=50)]
     period: str = "1y"
     confidence: Annotated[float, Field(gt=0, lt=1)] = 0.95
-    benchmark_ticker: Annotated[str, Field(min_length=1, max_length=20)] = "SPY"
+    benchmark_ticker: Annotated[
+        str,
+        Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.^=\-]{1,20}$"),
+    ] = "SPY"
+
+    @model_validator(mode="after")
+    def weights_sum_to_one(self) -> "MetricsRequest":
+        total = sum(h.weight for h in self.holdings)
+        if abs(total - 1.0) > 0.01:
+            raise ValueError(
+                f"Holdings weights must sum to 1.0 (got {total:.6f}). "
+                "Adjust weights before submitting."
+            )
+        return self
 
 
 class CorrelationMatrix(BaseModel):

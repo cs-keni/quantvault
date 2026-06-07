@@ -233,3 +233,22 @@ async def test_correlation_matrix_perfectly_correlated_series() -> None:
     same_df = pd.DataFrame({"X": PORTFOLIO_RETURNS, "Y": PORTFOLIO_RETURNS})
     result = risk_service.calculate_correlation_matrix(same_df)
     assert result["matrix"][0][1] == pytest.approx(1.0, abs=1e-10)
+
+
+async def test_correlation_matrix_zero_variance_fills_nan() -> None:
+    """A constant-return ticker produces NaN correlation; result is 0.0 (not NaN)."""
+    df = pd.DataFrame(
+        {"NORMAL": PORTFOLIO_RETURNS, "FLAT": [0.0] * len(PORTFOLIO_RETURNS)}
+    )
+    result = risk_service.calculate_correlation_matrix(df)
+    matrix = result["matrix"]
+    # Diagonal must remain 1.0 even for the constant-return ticker
+    assert matrix[0][0] == pytest.approx(1.0, abs=1e-10)
+    assert matrix[1][1] == pytest.approx(1.0, abs=1e-10)
+    # Off-diagonal for the zero-variance pair must be 0.0 (NaN replaced), not nan
+    assert matrix[0][1] == pytest.approx(0.0, abs=1e-10)
+    assert not any(
+        v != v  # NaN check via identity (NaN != NaN)
+        for row in matrix
+        for v in row
+    )

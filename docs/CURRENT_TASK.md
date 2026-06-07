@@ -1,12 +1,12 @@
 # Current Task
 
-**Phase 3 — Portfolio Service and Risk Metrics** ✅ complete
+**Phase 3 — Portfolio Service and Risk Metrics** ✅ complete (review passed)
 
-Implementation complete. 89 tests passing (2 skipped — integration-only), ruff clean, mypy 0 errors (40 files).
+Implementation complete. 102 tests passing (2 skipped — integration-only), ruff clean.
 
 All financial functions verified against hand-derivable ground-truth values in `tests/fixtures/known_values.py`.
 
-Next step: run `/review` (financial math phases require a review pass before marking complete per PHASES.md).
+`/review` pass complete — 6 bugs found and fixed (auth missing on ad-hoc endpoint, confidence IndexError, correlation NaN, update_portfolio None check, benchmark_ticker pattern, ad-hoc weight-sum validation). See ENGINEERING_LOG.md 2026-06-06.
 
 **T6 (^TNX live verification)** — still open, network-blocked. Formula confirmed as `/ 100` via fallback cross-check. Verify when Yahoo Finance is reachable from WSL2.
 

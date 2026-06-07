@@ -220,7 +220,10 @@ def calculate_correlation_matrix(returns_df: pd.DataFrame) -> dict[str, Any]:
         {"tickers": ["AAPL", "MSFT", ...], "matrix": [[1.0, 0.72, ...], ...]}
     """
     corr = returns_df.corr(method="pearson")
+    # Zero-variance tickers produce NaN; replace with 0.0 then restore diagonal.
+    corr_filled = corr.fillna(0.0)
+    np.fill_diagonal(corr_filled.values, 1.0)
     return {
-        "tickers": list(corr.columns),
-        "matrix": corr.values.tolist(),
+        "tickers": list(corr_filled.columns),
+        "matrix": corr_filled.values.tolist(),
     }

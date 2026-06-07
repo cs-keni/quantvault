@@ -135,11 +135,11 @@
 - [x] Implement `_compute_beta()`, `calculate_beta_from_ticker()`, `calculate_beta_from_returns()`
 - [x] Implement `calculate_sortino()` — downside deviation only in denominator
 - [x] Implement correlation matrix calculation
-- [ ] Run `/review` before marking Phase 3 complete — financial math must be correct
+- [x] Run `/review` before marking Phase 3 complete — financial math must be correct
 
 **QoL:** `POST /api/v1/analysis/metrics` accepts an ad-hoc portfolio (no DB save required) for the live Portfolio Builder preview. ✅ implemented.
 
-**Gate results (pre-review):** 89 passed, 2 skipped, ruff clean, mypy 0 errors (40 files).
+**Gate results (post-review):** 102 passed, 2 skipped, ruff clean. See ENGINEERING_LOG.md 2026-06-06 for full review findings and fixes.
 
 ---
 
