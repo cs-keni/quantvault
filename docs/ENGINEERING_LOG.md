@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-07 — Phase 6: /plan-eng-review complete, architecture locked (decisions 56–70)
 
-Commit: (pending)
+Commit: eec0ec6
 
 Full `/plan-eng-review` for Phase 6 Backtesting Engine. 7 interactive decisions (D1–D7) + 5 cross-model tension decisions (D8–D12) resolved. Codex outside voice ran and surfaced 15 additional issues; 5 became explicit locked decisions, 10 absorbed into the implementation spec. 15 architecture decisions locked in PHASES.md (decisions 56–70).
 
