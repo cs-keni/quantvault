@@ -12,6 +12,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.backtest_result import BacktestResult
     from app.models.holding import Holding
+    from app.models.simulation_result import SimulationResult
     from app.models.user import User
 
 
@@ -42,4 +43,7 @@ class Portfolio(Base):
     )
     backtest_results: Mapped[list["BacktestResult"]] = relationship(
         "BacktestResult", back_populates="portfolio", cascade="all, delete-orphan"
+    )
+    simulation_results: Mapped[list["SimulationResult"]] = relationship(
+        "SimulationResult", back_populates="portfolio", cascade="all, delete-orphan"
     )

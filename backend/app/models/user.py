@@ -11,6 +11,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.portfolio import Portfolio
+    from app.models.simulation_result import SimulationResult
 
 
 class User(Base):
@@ -50,6 +51,9 @@ class User(Base):
         back_populates="user",
         foreign_keys="[Portfolio.user_id]",
         cascade="all, delete-orphan",
+    )
+    simulation_results: Mapped[list["SimulationResult"]] = relationship(
+        "SimulationResult", back_populates="user", cascade="all, delete-orphan"
     )
     # post_update=True: breaks the User <-> Portfolio insert cycle by issuing a
     # second UPDATE after both rows exist, instead of failing on either insert.

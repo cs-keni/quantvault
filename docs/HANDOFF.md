@@ -5,6 +5,35 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-07 (Phase 5 — Monte Carlo implemented, pending `/review`)
+
+Phase 5 code is implemented and verified, but the required financial-math `/review` checkpoint has **not** been run yet, so do not mark Phase 5 complete until that review passes.
+
+**Implemented files:**
+- `app/models/simulation_result.py` — `SimulationResult` ORM model plus native `simulation_status` enum (`PENDING`, `SUCCESS`, `FAILURE`), required `user_id`, nullable `portfolio_id`, audit inputs, task id, result blob, and error field.
+- `alembic/versions/20260607_2200_9b1c2d3e4f50_add_simulation_results.py` — creates `simulation_status` and `simulation_results`.
+- `app/services/simulation_service.py` — `run_monte_carlo()` and `run_simulation` Celery task.
+- `app/schemas/simulation.py` — request/response/status schemas with uppercase ticker dedup, weight-sum validation, and Phase 5 caps.
+- `app/api/v1/simulation.py` — authenticated `POST /api/v1/simulation/monte-carlo` and `GET /api/v1/simulation/{simulation_id}`.
+- `app/main.py` and `app/celery_app.py` — router and task registration.
+- `tests/test_simulation.py` — 19 tests covering math invariants, validation, and DB-backed API state behavior with Celery dispatch mocked.
+
+**Verification after implementation:**
+- `cd backend && .venv/bin/ruff check app tests alembic` — clean
+- `cd backend && .venv/bin/mypy app` — clean (36 source files)
+- `cd backend && .venv/bin/pytest -q` — 132 passed, 2 skipped
+- `cd backend && .venv/bin/alembic upgrade head` — migration applied locally
+- `cd backend && .venv/bin/alembic check` — no drift
+
+**Important implementation notes:**
+- `run_monte_carlo()` uses `np.random.default_rng(seed)` and `standard_t(df=5)` directly scaled by daily sigma; this intentionally inflates realized vol relative to normal draws.
+- Contributions are injected at year-end after that day’s return with `(day + 1) % 252 == 0`, exactly `years` injections.
+- `probability_of_profit` and `probability_of_doubling` compare final value against total outlay (`initial + annual_contribution * years`), not just initial investment.
+- `sample_paths` always returns 20 quantile-sampled paths from sorted final values, duplicating indices when `n_simulations < 20`.
+- Celery task rejects dropped tickers as FAILURE instead of silently re-normalizing weights.
+- Celery DB writes use `asyncio.run()` with a fresh async engine per write, matching decision 44 and avoiding event-loop/pool reuse.
+- The first Alembic verification caught a duplicate enum creation bug; migration now manually creates the enum once and references it with `postgresql.ENUM(..., create_type=False)`.
+
 ## State as of 2026-06-07 (Phase 4 — Efficient Frontier complete ✅)
 
 Phase 4 implemented, reviewed, and marked complete. `/review` pass found 2 informational issues (both fixed):

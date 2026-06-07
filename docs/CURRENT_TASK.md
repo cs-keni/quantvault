@@ -1,14 +1,22 @@
 # Current Task
 
-**Phase 5 — Monte Carlo Simulation** — architecture locked, ready for implementation
+**Phase 5 — Monte Carlo Simulation** — implemented, pending `/review`
 
-`/plan-eng-review` complete (2026-06-07, commit `69689a3`). 17 decisions locked (PHASES.md decisions 39–55). 5 implementation tasks ready for Codex.
+Implementation completed 2026-06-07. `/plan-eng-review` complete (2026-06-07, commit `69689a3`). 17 decisions locked (PHASES.md decisions 39–55) were followed.
 
-Implementation order (parallel where possible):
-- Lane A (parallel): `app/models/simulation_result.py` + Alembic migration
-- Lane B (parallel): `app/services/simulation_service.py` (`run_monte_carlo()` + Celery task)
-- Lane C (after A+B): `app/schemas/simulation.py` + `app/api/v1/simulation.py` + `app/main.py`
-- Lane D (after C): `tests/test_simulation.py` (18 tests)
+Implemented:
+- `app/models/simulation_result.py` + Alembic migration for `simulation_status` and `simulation_results`
+- `app/services/simulation_service.py` with `run_monte_carlo()` + `run_simulation` Celery task
+- `app/schemas/simulation.py`
+- `app/api/v1/simulation.py` + router registration in `app/main.py`
+- `tests/test_simulation.py` (19 tests)
+
+Latest checks:
+- `cd backend && .venv/bin/ruff check app tests alembic` — clean
+- `cd backend && .venv/bin/mypy app` — clean (36 source files)
+- `cd backend && .venv/bin/pytest -q` — 132 passed, 2 skipped
+- `cd backend && .venv/bin/alembic upgrade head` — migration applied locally
+- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
 
 Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
 

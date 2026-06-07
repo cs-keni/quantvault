@@ -3,6 +3,7 @@
 from app.models.backtest_result import BacktestResult, RebalanceFrequency
 from app.models.holding import AssetClass, Holding
 from app.models.portfolio import Portfolio
+from app.models.simulation_result import SimulationResult, SimulationStatus
 from app.models.user import User
 
 __all__ = [
@@ -11,5 +12,7 @@ __all__ = [
     "Holding",
     "Portfolio",
     "RebalanceFrequency",
+    "SimulationResult",
+    "SimulationStatus",
     "User",
 ]

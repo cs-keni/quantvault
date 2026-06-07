@@ -9,7 +9,7 @@ celery_app = Celery(
     include=[
         # Task modules are registered here as each lands:
         "app.services.optimization_service",
-        # "app.services.simulation_service",     — Monte Carlo (Phase 5)
+        "app.services.simulation_service",
         # "app.services.backtest_service",       — backtesting engine (Phase 6)
     ],
 )

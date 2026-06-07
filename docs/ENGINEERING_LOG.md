@@ -3,6 +3,41 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 5: Monte Carlo Simulation implementation
+
+Commit: this implementation commit
+
+Implemented Phase 5 Monte Carlo Simulation according to PHASES.md decisions 39–55. Phase 5 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
+
+**Files changed:**
+- `app/models/simulation_result.py` — new `SimulationResult` model and `SimulationStatus` enum
+- `app/models/__init__.py`, `app/models/user.py`, `app/models/portfolio.py` — model registration and relationships
+- `alembic/versions/20260607_2200_9b1c2d3e4f50_add_simulation_results.py` — simulation table + native enum migration
+- `app/services/simulation_service.py` — `run_monte_carlo()` + `run_simulation` Celery task + fresh-engine DB write bridge
+- `app/schemas/simulation.py` — request/response/status schemas
+- `app/api/v1/simulation.py` — POST submit + GET status endpoints
+- `app/main.py`, `app/celery_app.py` — router/task registration
+- `tests/test_simulation.py` — 19 tests for MC math, validation, and API state flow
+
+**Implementation details:**
+- RNG uses `np.random.default_rng(seed)`; no global `np.random.seed()`.
+- Simulation returns use `standard_t(df=5)` directly scaled by daily sigma (`daily_mu + daily_sigma * t_draw`), preserving fat tails and intentionally higher realized vol.
+- Contributions inject at year-end after that day’s return via `(day + 1) % 252 == 0`, giving exactly `years` contributions.
+- `probability_of_profit` and `probability_of_doubling` compare final values against total outlay (`initial + annual_contribution * years`).
+- `sample_paths` returns 20 quantile-sampled paths from sorted final values; for `n_simulations < 20`, indices intentionally repeat.
+- Celery task treats any dropped ticker as FAILURE to avoid silently changing portfolio composition.
+- Celery DB writes use `asyncio.run()` with a fresh async engine per write, then dispose it.
+
+**Tests / checks:**
+- `cd backend && .venv/bin/ruff check app tests alembic` — clean
+- `cd backend && .venv/bin/mypy app` — clean (36 source files)
+- `cd backend && .venv/bin/pytest -q` — 132 passed, 2 skipped
+- `cd backend && .venv/bin/alembic upgrade head` — migration applied locally
+- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
+
+**Bug caught during verification:**
+- Initial migration manually created `simulation_status` and then used the same `sa.Enum` in `create_table`, causing SQLAlchemy to emit a duplicate `CREATE TYPE`. Fixed by creating the enum once and using `postgresql.ENUM(..., create_type=False)` in the table definition.
+
 ## 2026-06-07 — Phase 5: /plan-eng-review complete, architecture locked (decisions 39-55)
 
 Commit: 69689a3

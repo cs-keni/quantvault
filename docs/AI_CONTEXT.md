@@ -53,7 +53,7 @@ for the full list with rationale. The ones that change *how code is written*:
   forward (the spec's `cumprod` add-to-all approach was financially wrong).
 - **CVaR guard**: `var_index = max(int((1 - confidence) * N), 1)` prevents an
   empty-slice → NaN on small samples or high confidence levels.
-- **Efficient frontier (Phase 4 — implemented, pending `/review`)**:
+- **Efficient frontier (Phase 4 — complete)**:
   `optimization_service.py` owns all MPT math and the Celery task
   `compute_frontier`. The task calls `_fetch_and_process_returns()` directly
   (sync) + `redis.Redis` (sync — **no async DI in Celery workers**). Optimizer
@@ -67,6 +67,19 @@ for the full list with rationale. The ones that change *how code is written*:
   `GET /api/v1/analysis/frontier/{task_id}` (non-blocking state poll; FAILURE
   must return `error=str(result.info)`). See PHASES.md decisions 28–38 for full
   rationale.
+- **Monte Carlo simulation (Phase 5 — implemented, pending `/review`)**:
+  `simulation_service.py` owns all MC math and the Celery task `run_simulation`.
+  Results are persisted in PostgreSQL `simulation_results`, not Redis/Celery
+  result TTL: POST creates `PENDING`, Celery writes `SUCCESS`/`FAILURE`, and GET
+  reads by `id AND user_id`. Inputs are ad-hoc `tickers + weights + period` with
+  optional `portfolio_id`; POST validates portfolio ownership when provided.
+  Simulation uses `np.random.default_rng(seed)` and `standard_t(df=5)` directly
+  scaled by daily sigma: `daily_mu + daily_sigma * t_draw`. Contributions inject
+  at year-end after that day's return exactly `years` times. Profit/doubling
+  probabilities compare against total outlay (`initial + contribution * years`).
+  Dropped tickers from yfinance are task FAILURE, not silent weight
+  re-normalization. Celery DB writes use `asyncio.run()` with a fresh async
+  engine per write.
 - **`portfolio_to_weights(holdings) -> tuple[list[str], np.ndarray]`** is the
   single Decimal→float conversion point, centralized in `portfolio_service.py`.
 - **`User.default_portfolio_id` FK**, not `Portfolio.is_default bool` — avoids

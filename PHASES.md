@@ -222,7 +222,7 @@
 > **`/plan-eng-review` completed 2026-06-07** — architecture locked in decisions 39–55 above.
 > Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
 
-- [ ] Add `app/models/simulation_result.py` — `SimulationResult` ORM model (decision 41):
+- [x] Add `app/models/simulation_result.py` — `SimulationResult` ORM model (decision 41):
   - `status`: native Postgres enum `simulation_status {PENDING, SUCCESS, FAILURE}` (decision 52)
   - `user_id`: UUID FK → users.id, NOT NULL (decision 48)
   - `portfolio_id`: UUID FK → portfolios.id, nullable, CASCADE (decision 41)
@@ -232,11 +232,11 @@
   - `results`: JSONB nullable (null until SUCCESS), `error`: str nullable
   - `created_at`: datetime
 
-- [ ] Add `SimulationResult` to `app/models/__init__.py` (for Alembic autodiscovery)
+- [x] Add `SimulationResult` to `app/models/__init__.py` (for Alembic autodiscovery)
 
-- [ ] Write Alembic migration: creates `simulation_status` enum + `simulation_results` table
+- [x] Write Alembic migration: creates `simulation_status` enum + `simulation_results` table
 
-- [ ] Implement `run_monte_carlo()` in `simulation_service.py`:
+- [x] Implement `run_monte_carlo()` in `simulation_service.py`:
   - Input: `portfolio_metrics: dict` (keys: `annualized_return`, `annualized_volatility`), `initial_investment`, `years`, `n_simulations`, `annual_contribution`, `seed`
   - `rng = np.random.default_rng(seed)` — thread-safe isolated RNG (decision 42)
   - `daily_mu = mu / 252`; `daily_sigma = sigma / sqrt(252)` (arithmetic annual return)
@@ -248,7 +248,7 @@
   - `sample_paths`: 20 paths quantile-sampled from sorted final values (decision 55)
   - Percentile bands: P5, P10, P25, P50, P75, P90, P95
 
-- [ ] Implement Celery task `run_simulation(simulation_id, params)` in `simulation_service.py` (decision 40, 44, 50):
+- [x] Implement Celery task `run_simulation(simulation_id, params)` in `simulation_service.py` (decision 40, 44, 50):
   - `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` (decision 50)
   - Fetch returns via `_fetch_and_process_returns()` directly (sync, no DI) — mirrors Phase 4 pattern
   - If any tickers dropped by data-quality pipeline → mark FAILURE (decision 54)
@@ -257,21 +257,21 @@
   - Catch `SoftTimeLimitExceeded` → write `status=FAILURE, error="timeout"` to DB
   - Catch all exceptions → write `status=FAILURE, error=str(exc)` to DB
 
-- [ ] Update `app/celery_app.py` — uncomment `"app.services.simulation_service"` include
+- [x] Update `app/celery_app.py` — uncomment `"app.services.simulation_service"` include
 
-- [ ] Add `app/schemas/simulation.py`:
+- [x] Add `app/schemas/simulation.py`:
   - `SimulationRequest`: tickers (list, uppercase, dedup, pattern `^[A-Za-z0-9.^=\-]{1,20}$`), weights (non-negative, sum 1.0±0.001), period (`_AnalysisPeriod`), initial_investment, years (1–30), n_simulations (1–1000), annual_contribution (≥0), seed (optional), portfolio_id (optional UUID) — decision 53
   - `SimulationResponse`: percentile_outcomes, sample_paths, mean_final_value, probability_of_profit, probability_of_doubling, final_value_distribution, initial_investment, years, n_simulations, annual_contribution
   - `SimulationSubmitResponse`: simulation_id (UUID), task_id (str), status
   - `SimulationStatusResponse`: simulation_id, status, result (nullable), error (nullable)
 
-- [ ] Add `app/api/v1/simulation.py` (decision 39, 48, 49):
+- [x] Add `app/api/v1/simulation.py` (decision 39, 48, 49):
   - `POST /api/v1/simulation/monte-carlo` — `CurrentUser` required; validate request; validate `portfolio_id` ownership if provided (decision 49); INSERT `SimulationResult(PENDING)`; dispatch `run_simulation.delay(simulation_id, params)`; on dispatch failure → log + 500; return `SimulationSubmitResponse`
   - `GET /api/v1/simulation/{simulation_id}` — `CurrentUser` required; SELECT WHERE id=? AND user_id=? (decision 48); 404 if not found or wrong user; return `SimulationStatusResponse`
 
-- [ ] Register simulation router in `app/main.py`
+- [x] Register simulation router in `app/main.py`
 
-- [ ] Write `tests/test_simulation.py` (18 tests):
+- [x] Write `tests/test_simulation.py` (19 tests):
   - **Math unit tests (no live data, deterministic fixtures):**
     - Same seed → same results (two identical calls produce identical output)
     - Different seeds → different results
