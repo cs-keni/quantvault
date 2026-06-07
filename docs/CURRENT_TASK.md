@@ -6,7 +6,7 @@
 - ISSUE-001 (HIGH): Backend `_compute_metrics()` returning 500 instead of 503 on Yahoo Finance rate-limit → fixed in `ccca4c7`
 - ISSUE-002 (MEDIUM): `ComparePage` premature metrics queries + table render when < 2 portfolios selected → fixed in `0059387`
 
-**Next:** Phase 8 — Polish, CI, and Portfolio Integration
+**Next:** Phase 8a — Infra (Docker entrypoint, GitHub Actions CI, README)
 
 ---
 

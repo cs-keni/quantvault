@@ -498,26 +498,73 @@
 
 ---
 
-## Phase 8 — Polish, CI, and Portfolio Integration
-- [ ] Finalize Docker Compose (all 5 services: backend, frontend, db, redis, celery-worker)
-- [ ] Write GitHub Actions CI:
-  1. Python 3.12: pytest + ruff + mypy
-  2. Node.js 20: frontend build + type check
-  3. Docker image build smoke test
-- [ ] Write polished README:
-  - Motivation + personal narrative (Vanguard account)
-  - Financial Concepts Explained (MPT, VaR, GBM — friendly but rigorous)
-  - Architecture diagram
-  - Algorithm notes (t-distribution rationale, rolling VaR rationale, contribution compounding fix)
-  - Disclaimer: "Mean-variance optimized under assumptions. Not financial advice."
-  - Setup instructions + screenshots
-- [ ] Take screenshots with realistic demo data: VTI 60% / BND 30% / VXUS 10%
+## Phase 8 — Polish, CI, and UI Overhaul
+
+> Architecture locked via `/plan-eng-review` 2026-06-07. Split into 8a (infra) and 8b (UI overhaul).
+> Decisions 56–70 below. Run `/review` before marking either sub-phase complete.
+
+### Architecture Decisions (Phase 8, locked 2026-06-07)
+
+| # | Decision | Rationale |
+|---|---|---|
+| 56 | Phase 8a (infra) ships before Phase 8b (UI) | 14+ file scope triggers complexity gate; independent QA passes |
+| 57 | React.lazy() + Suspense for all 8 routes | 500KB+ main bundle; lazy loading splits Recharts to page-level chunks |
+| 58 | Dark mode default (dark), toggle to light | Fintech aesthetic; Bloomberg/Robinhood standard |
+| 59 | Dark mode via `@custom-variant dark` in Tailwind v4 CSS | `@theme` already has semantic tokens; adding dark variants requires no component rewrites |
+| 60 | FOUC prevention: inline script in `index.html` reads `localStorage['qv-theme']` before React hydrates | Zustand fires after hydration; pre-React script prevents white flash |
+| 61 | Fixed 220px sidebar nav, icon + label | Robinhood-style; separates nav from content for data-dense pages |
+| 62 | AppShell wraps only authenticated routes (login/register stay full-screen) | Auth pages are standalone; sidebar irrelevant pre-auth |
+| 63 | AppShell sidebar portfolio state from `useParams()` not global Zustand | Route is source of truth; deep links (/portfolios/:id/analysis) derive sidebar from URL |
+| 64 | Mobile: hamburger menu → overlay drawer at <768px | 220px sidebar crushes mobile; overlay drawer is standard responsive pattern |
+| 65 | framer-motion added (alongside tw-animate-css) | Spring physics, AnimatePresence, layout animations — required for Robinhood-caliber feel |
+| 66 | `useReducedMotion()` guard on all framer-motion animations | `prefers-reduced-motion: reduce` accessibility requirement |
+| 67 | Recharts kept, custom tooltip/gradient components | No migration cost; 90% visual gap solved by custom components + dark theme |
+| 68 | `frontend/src/components/` shared: MetricCard, PeriodToggle, SkeletonCard, PageHeader | 3 separate MetricCard implementations → single source |
+| 69 | Backend `entrypoint.sh`: `alembic upgrade head && uvicorn` | Fresh `docker compose up` previously booted with no schema |
+| 70 | Backend Dockerfile: non-root user (`appuser`) | Security best practice; Docker layer before CMD |
+
+---
+
+### Phase 8a — Infra
+
+- [ ] **T1** — `backend/Dockerfile` + `backend/entrypoint.sh`: add non-root user (`appuser`) and `alembic upgrade head` before uvicorn start
+- [ ] **T2** — `.github/workflows/ci.yml`: Python job (postgres:16 + redis:7 services, create `quantvault_test` DB, ruff + mypy + pytest); Node job (npm ci + lint + test + build); Docker smoke (compose build)
+- [ ] **T3** — `README.md`: motivation narrative, architecture ASCII diagram, Financial Concepts Explained (MPT, VaR, Student-t simulation — NOT "GBM"), algorithm notes, setup instructions. **No screenshots yet** (deferred to Phase 8b completion)
+- [ ] Run `/review` on Phase 8a before marking complete
+- [ ] Run `/qa` on `docker compose up` flow: fresh clone → boot → all 5 services healthy → login works
+
+**QoL:** README badge row: CI status badge, Python 3.12, FastAPI, React.
+
+---
+
+### Phase 8b — UI Overhaul
+
+- [ ] **T4** — `frontend/src/index.css`: dark mode CSS variables (`@custom-variant dark`, dark color token block); `frontend/index.html`: FOUC prevention inline script
+- [ ] **T5** — `frontend/src/store/themeStore.ts`: Zustand store — toggle, `localStorage` key `qv-theme`, default `dark`
+- [ ] **T6** — `frontend/src/components/`: `MetricCard.tsx` (animated counter, tone, N/A), `PeriodToggle.tsx`, `SkeletonCard.tsx`, `PageHeader.tsx` + unit tests for each
+- [ ] **T7** — `frontend/src/App.tsx`: convert all 8 page imports to `React.lazy()` + `<Suspense fallback={<PageSkeleton />}>`
+- [ ] **T8** — `frontend/src/components/AppShell.tsx`: 220px sidebar, route-aware active state, mobile hamburger drawer, dark mode toggle button, sign out; unit tests (nav items, active state, collapse)
+- [ ] **T9** — All 8 pages: dark mode token conversion (all `bg-white` → `bg-surface`, hardcoded chart colors → semantic), visual redesign with framer-motion entrance animations
+- [ ] **T10** — Chart pages (Dashboard, Analysis, Monte Carlo, Backtest): custom Recharts `<Tooltip>` components, gradient `<Area>` fills, dark palette, themed axis labels
+- [ ] **T11** — framer-motion integration: `AnimatePresence` route transitions in `App.tsx`, staggered card entrances via `motion.div`, `useReducedMotion()` guard in all animation components
+- [ ] **T12** — `README.md`: add screenshots with demo data (VTI 60% / BND 30% / VXUS 10%) after visual redesign is complete
+- [ ] Run `/review` on Phase 8b before marking complete
+- [ ] Run `/qa` — full Standard tier pass: dark mode, sidebar nav, mobile drawer, all 7 pages, chart theming, framer-motion animations
+
+**QoL:** GitHub repo social preview image (Open Graph). themeStore persists across sessions. Sidebar collapse animation on mobile.
+
+---
+
+### After Phase 8
+
 - [ ] Add to Kenny's ePortfolio (`src/data/projects.js`)
-- [ ] Deployment: Railway or Render for hosted demo (Docker Compose target)
-- [ ] Run `/review` and `/qa` on final state
+- [ ] Deployment: Railway (backend + celery-worker) + Vercel (frontend) + Supabase (Postgres) + Upstash (Redis)
 - [ ] Sync gbrain with final state: `/sync-gbrain`
 
-**QoL:** GitHub repo social preview image (Open Graph). README badge row: CI status, Python 3.12, FastAPI, React.
+**TODOS deferred from Phase 8 review:**
+- `uvicorn --workers 4` or gunicorn for multi-worker production (relevant at deployment time)
+- Full accessibility audit: ARIA labels, focus rings, keyboard nav (beyond `prefers-reduced-motion`)
+- Recharts component-level lazy loading (Dashboard still loads Recharts on first auth; acceptable for now)
 
 ---
 

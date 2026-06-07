@@ -3,6 +3,31 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — /plan-eng-review Phase 8: Architecture locked
+
+Phase 8 architecture locked via full `/plan-eng-review` + Codex outside voice.
+
+**Key decisions (decisions 56–70 in PHASES.md):**
+- Phase 8 split into 8a (infra, ships first) and 8b (UI overhaul)
+- Dark mode first (default dark), CSS variables via Tailwind v4 `@custom-variant dark`
+- FOUC prevention: inline script in `index.html` reads `localStorage['qv-theme']` before React hydrates
+- Fixed 220px sidebar with hamburger overlay drawer on mobile
+- framer-motion added (spring physics, AnimatePresence, `useReducedMotion()` guard)
+- Recharts kept — custom tooltip/gradient components for fintech aesthetic
+- `frontend/src/components/` shared component library (MetricCard, PeriodToggle, SkeletonCard, PageHeader)
+- React.lazy() + Suspense for all 8 routes (bundle splitting: 500KB+ → per-page chunks)
+- Backend Dockerfile: non-root user + `entrypoint.sh` with `alembic upgrade head` before uvicorn
+- CI: create `quantvault_test` DB explicitly in GitHub Actions postgres service job
+
+**Codex outside voice findings added to plan:**
+- `bg-white` hardcoding across pages → Phase 8b full semantic-token pass
+- Docker bare uvicorn CMD → `entrypoint.sh` fix (locked as T1)
+- CI test DB creation → explicit `CREATE DATABASE` step (locked as T2)
+- README screenshots deferred until after Phase 8b UI overhaul
+- README "GBM" → corrected to "Student-t simulation (df=5)"
+
+**Commit:** TBD (this log entry recorded before commit)
+
 ## 2026-06-07 — /qa Phase 7: Two bugs fixed
 
 Running /qa Standard tier on Phase 7 frontend. Two bugs found and fixed.
