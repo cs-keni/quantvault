@@ -148,10 +148,11 @@ for the full list with rationale. The ones that change *how code is written*:
 
 ## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
 
-Phase 7a foundation is implemented. The frontend now uses Vite/nginx `/api`
-proxies with `apiClient.baseURL = "/api/v1"`, a Zustand auth store with
-deduplicated `silentRefresh()`, protected route bootstrapping, and the backend
-now exposes `GET /auth/me` plus `PortfolioMetricsResponse.daily_returns`.
+Phase 7a foundation and Phase 7b auth pages are implemented. The frontend now
+uses Vite/nginx `/api` proxies with `apiClient.baseURL = "/api/v1"`, a Zustand
+auth store with deduplicated `silentRefresh()`, protected route bootstrapping,
+React Hook Form login/register pages, and the backend now exposes
+`GET /auth/me` plus `PortfolioMetricsResponse.daily_returns`.
 
 **Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
 

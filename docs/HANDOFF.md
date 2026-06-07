@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7a complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7b complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation is implemented and verified; Phase 7b auth pages are next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation and Phase 7b auth pages are implemented and verified; Phase 7c Dashboard is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -28,11 +28,24 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd backend && .venv/bin/mypy app` — clean (39 source files)
 - `cd backend && .venv/bin/pytest tests/test_auth.py tests/test_risk_metrics.py -q` — 50 passed, 1 warning; local Postgres/Redis had to be started with `docker compose up -d db redis`.
 
-**Next implementation slice: Phase 7b auth pages**
-- Replace the temporary `LoginPage` and `RegisterPage` placeholders with React Hook Form forms.
-- Login: `POST /auth/login` → `authStore.setTokens()` → hydrate user or redirect `/dashboard`; 401 shows "Invalid email or password".
-- Register: `POST /auth/register` returns `UserRead`, then auto `POST /auth/login`.
-- Add Vitest coverage for auth store + refresh lock.
+**Implemented in Phase 7b:**
+- `frontend/src/pages/LoginPage.tsx` — React Hook Form login, `/auth/login`, token storage, `/auth/me` hydration, redirect to `/dashboard`, 401 inline error.
+- `frontend/src/pages/RegisterPage.tsx` — React Hook Form registration, `/auth/register` then `/auth/login`, token/user storage, redirect to `/dashboard`, 409 inline error.
+- `frontend/vite.config.ts` — Vitest jsdom test environment.
+- `frontend/package.json` — `npm test` script.
+- `frontend/src/store/__tests__/authStore.test.ts` — refresh dedupe, logout clearing, refresh 401 no-retry, no-token rejection.
+
+**Verification after Phase 7b:**
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run build` — clean
+- `cd frontend && npm run lint` — clean
+
+**Next implementation slice: Phase 7c Dashboard**
+- Portfolio selector from `GET /portfolios`.
+- Period toggle tokens only: `1mo / 6mo / 1y / 2y / max`.
+- Metrics cards from `GET /analysis/portfolios/:id/metrics`.
+- Return distribution histogram from `daily_returns`.
+- Skeleton/error/retry states plus the locked animation details.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)

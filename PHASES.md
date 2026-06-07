@@ -454,9 +454,9 @@
 - [x] Full routing in App.tsx: all 8 pages + ProtectedRoute
 
 **Phase 7b — Auth Pages**
-- [ ] LoginPage (`/login`): centered card, email + password fields, React Hook Form, POST /auth/login, store tokens, redirect /dashboard
-- [ ] RegisterPage (`/register`): same layout, POST /auth/register → auto POST /auth/login → redirect /dashboard
-- [ ] Unit test: authStore silentRefresh + deduplicated refresh lock
+- [x] LoginPage (`/login`): centered card, email + password fields, React Hook Form, POST /auth/login, store tokens, redirect /dashboard
+- [x] RegisterPage (`/register`): same layout, POST /auth/register → auto POST /auth/login → redirect /dashboard
+- [x] Unit test: authStore silentRefresh + deduplicated refresh lock
 
 **Phase 7c — Dashboard**
 - [ ] DashboardPage (`/dashboard`): portfolio selector, risk metrics cards (Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown)

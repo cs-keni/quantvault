@@ -3,6 +3,24 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7b: Auth pages implemented
+
+Implemented the locked Phase 7b auth pages and frontend auth tests.
+
+**Changed:**
+- Replaced `LoginPage` placeholder with a React Hook Form email/password form.
+- Login calls `POST /auth/login`, stores access/refresh tokens via `authStore`, hydrates `GET /auth/me`, and redirects to `/dashboard`.
+- Replaced `RegisterPage` placeholder with a React Hook Form full-name/email/password form.
+- Register calls `POST /auth/register` (returns `UserRead`), then auto-calls `POST /auth/login`, stores tokens/user, and redirects to `/dashboard`.
+- Added inline auth errors for login 401 and register 409.
+- Added `npm test` and Vitest jsdom config.
+- Added auth store tests covering concurrent refresh dedupe, logout storage clearing, refresh-path 401 no-retry behavior, and no-token rejection without backend calls.
+
+**Checks:**
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+
 ## 2026-06-07 — Phase 7a: Frontend foundation implemented
 
 Implemented the locked Phase 7a foundation.

@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7a complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7b complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7b is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7c Dashboard is next.
 
 ---
 
@@ -84,25 +84,39 @@ interface AuthState {
 
 ---
 
-## Phase 7b — Auth Pages
+## Phase 7b — Auth Pages ✅ complete
+
+Completed 2026-06-07.
+
+- Replaced `/login` and `/register` placeholders with React Hook Form pages.
+- Login posts to `/auth/login`, stores tokens in `authStore`, hydrates `/auth/me`, and redirects to `/dashboard`.
+- Register posts to `/auth/register`, then auto-posts `/auth/login`, stores tokens/user, and redirects to `/dashboard`.
+- Inline errors: login 401 → "Invalid email or password"; register 409 → "Email already registered".
+- Added `npm test` script and Vitest jsdom config.
+- Added `frontend/src/store/__tests__/authStore.test.ts` for concurrent refresh deduplication, logout storage clearing, refresh-path 401 guard, and no-token silent refresh rejection.
+
+Verification:
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
 
 ### LoginPage (`/login`)
-- Centered card layout (min-h-screen flex items-center justify-center)
-- React Hook Form: email + password fields with validation
-- POST /auth/login → `authStore.setTokens(access, refresh)` → navigate('/dashboard')
-- 401 → inline error "Invalid email or password"
+- [x] Centered card layout (min-h-screen flex items-center justify-center)
+- [x] React Hook Form: email + password fields with validation
+- [x] POST /auth/login → `authStore.setTokens(access, refresh)` → navigate('/dashboard')
+- [x] 401 → inline error "Invalid email or password"
 
 ### RegisterPage (`/register`)
-- Same card layout
-- POST /auth/register (returns UserRead) → then auto POST /auth/login → navigate('/dashboard')
-- 409 → "Email already registered"
+- [x] Same card layout
+- [x] POST /auth/register (returns UserRead) → then auto POST /auth/login → navigate('/dashboard')
+- [x] 409 → "Email already registered"
 
 ### Unit test: authStore + refresh lock
 `frontend/src/store/__tests__/authStore.test.ts`
-- silentRefresh() called by 5 concurrent components → exactly 1 POST /auth/refresh
-- logout() clears accessToken from memory AND localStorage
-- _retry guard: 401 on /auth/refresh path does NOT trigger another refresh
-- No refresh_token in localStorage → silentRefresh() rejects without hitting backend
+- [x] silentRefresh() called by 5 concurrent components → exactly 1 POST /auth/refresh
+- [x] logout() clears accessToken from memory AND localStorage
+- [x] _retry guard: 401 on /auth/refresh path does NOT trigger another refresh
+- [x] No refresh_token in localStorage → silentRefresh() rejects without hitting backend
 
 ---
 
