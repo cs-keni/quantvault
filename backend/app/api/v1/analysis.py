@@ -72,8 +72,14 @@ async def _compute_metrics(
     market_service: MarketDataService,
 ) -> PortfolioMetricsResponse:
     """Shared computation used by both the ad-hoc and saved-portfolio endpoints."""
-    # Fetch returns
-    returns_df, dropped = await market_service.get_historical_returns(tickers, period)
+    # Fetch returns — yfinance failures raise ValueError; surface as 503 not 500
+    try:
+        returns_df, dropped = await market_service.get_historical_returns(tickers, period)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Market data unavailable: {exc}",
+        ) from exc
     if returns_df.empty:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
