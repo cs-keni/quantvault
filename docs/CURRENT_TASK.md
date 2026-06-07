@@ -16,7 +16,19 @@ Gates: 134 passed, 2 skipped, ruff clean, mypy clean.
 
 ## Next
 
-**Phase 6 — Backtesting Engine**
+**Phase 6 — Backtesting Engine** — `/plan-eng-review` complete 2026-06-07 (decisions 56–70 locked in PHASES.md)
+
+Architecture decisions locked:
+- True terminal CAGR `(end/start)^(252/n_days)−1` (not mean-daily estimate)
+- NEVER rebalance = true buy-and-hold: `Σ(w_i × cumreturn_i)` (not daily-rebalanced cumprod)
+- Calmar = `Optional[float]`, `None` when max_drawdown == 0
+- Benchmark = `portfolio.benchmark_ticker` with SPY-collision dedup
+- Copy NullPool bridge from simulation_service.py (do NOT touch simulation_service.py)
+- yfinance `end=end_date + timedelta(days=1)` (exclusive)
+- Data availability check: both late-start AND early-end >5 trading days → FAILURE
+- Migration backfills `user_id` from `portfolio_id → portfolios.user_id`; makes result blobs nullable
+
+Implementation tasks: T1 (migration) → T2 (schemas) → T3 (market_data_service date-range method) → T4 (run_backtest_engine) → T5 (Celery task) → T6 (API endpoints) → T7 (tests)
 
 ---
 

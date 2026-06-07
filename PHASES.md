@@ -64,6 +64,21 @@
 | 53 | Input validation: ticker regex `^[A-Za-z0-9.^=\-]{1,20}$`, uppercase-normalize, dedup; weights non-negative + sum to 1.0 ± 0.001; `years >= 1`; `n_simulations >= 1`; period must be `_AnalysisPeriod` literal | Inherit all validation patterns from Phase 2 ticker whitelist and Phase 3 weight validation |
 | 54 | Dropped tickers from yfinance → reject simulation with 422 (do not re-normalize weights silently) | Silent weight re-normalization changes the user's portfolio composition without their knowledge |
 | 55 | `sample_paths`: select 20 paths by index spread evenly across sorted final values (quantile-sampled) for visual diversity | Deterministic selection rule: `np.linspace(0, n_simulations-1, 20, dtype=int)` on argsorted final values |
+| 56 | Backtest: Celery + PENDING row pattern (same as Phase 5); `BacktestResult` gets `status`/`task_id`/`error` columns via migration | CPU-bound; long (10yr) backtests must not block the FastAPI event loop |
+| 57 | Add `user_id` FK to `BacktestResult` (NOT NULL); backfill existing rows via `portfolio_id → portfolios.user_id` | Consistent auth scoping with `SimulationResult`; backfill makes migration safe for existing rows |
+| 58 | Add `tickers` (JSONB) + `weights` (JSONB) to `BacktestResult`; make `tearsheet`/`daily_returns`/`equity_curve` nullable | Input audit trail for FAILURE rows; nullable blobs required for PENDING rows before Celery writes results |
+| 59 | Jensen's Alpha: `alpha = CAGR_portfolio − (rfr + beta × (CAGR_benchmark − rfr))`; rfr = current `^TNX` ÷ 100; document static-rfr limitation in docstring | Static rfr acceptable at demo scale; historically misleading for multi-decade backtests — limitation must be documented |
+| 60 | Data availability check: fail (`FAILURE`, no task started) if any ticker's data starts >5 trading days after `start_date` OR ends >5 trading days before `end_date` | Catches both late-start (IPO) and early-end (delisted) silently truncated series; symmetric check prevents corrupted equity curves |
+| 61 | `_celery_db.py` extraction: copy the NullPool + asyncio.run() bridge into `backtest_service.py` now; extract shared helper after Phase 6 ships | Phase 5 (134 tests passing) must never be touched during Phase 6 work; copy-first isolates regression risk |
+| 62 | GET `/portfolios/{id}/backtests` returns `BacktestSummary` items only — `strategy_name`, `status`, `start_date`, `end_date`, `created_at`, and top-level tearsheet scalar fields (no `equity_curve`, `daily_returns` arrays) | Prevents accidentally serving O(n) arrays in a list endpoint; summary schema defined as explicit Pydantic model, not dynamic tearsheet key reads |
+| 63 | Backtest CAGR: `(final_portfolio_value / initial_investment)^(252 / n_trading_days) − 1` (true terminal CAGR) | Do NOT reuse `calculate_portfolio_metrics()` for CAGR; that returns `(1+mean_daily)^252−1`, which was already caught as wrong in Phase 5 review |
+| 64 | `calmar: Optional[float]` — return `None` when `max_drawdown == 0`; document in field description | JSON does not allow `Infinity` (RFC 8259); `0.0` is actively misleading (implies zero CAGR); `None` is the honest representation of an undefined ratio |
+| 65 | Benchmark source: read `portfolio.benchmark_ticker` (defaults to `"SPY"`); if benchmark_ticker collides with a portfolio holding, fetch benchmark in a separate `yf.download()` call | `Portfolio.benchmark_ticker` was added in Phase 1 for this purpose; hardcoding SPY ignores existing user data and causes duplicate-column crash when portfolio already holds SPY |
+| 66 | NEVER rebalance (buy-and-hold) formula: `equity_t = initial_investment × Σ(w_i × Π(1 + r_{i,s}) for s=1..t)` | `cumprod(1 + weighted_daily_returns)` implicitly rebalances to original weights every day; true buy-and-hold tracks each asset's independent cumulative return |
+| 67 | yfinance `end` parameter is exclusive: fetch through `end_date + 1 calendar day` to include the requested last trading day | yfinance drops the `end` date from the result; without `+1 day`, the equity curve is always missing the final trading day |
+| 68 | Win rate = fraction of trading days where portfolio return > 0; zero-return days count as non-wins; document in `BacktestResult.tearsheet` schema | Common convention; zero-return days are rare for a multi-asset portfolio; limitation documented in field description |
+| 69 | Rebalance timing: rebalance at close of the first trading day of each new calendar period — apply rebalance AFTER that day's return, BEFORE recording that day's equity curve value | Makes rebalance_count verifiable: count periods with a boundary trading day in [start+1, end] |
+| 70 | Dispatch failure (POST commits PENDING, then Celery `.delay()` raises): log error, return HTTP 500; PENDING row stays visible (not silent); add TODO-6 for orphan cleanup | Same pattern as Phase 5 TODO-4; acceptable at demo scale |
 
 ---
 
@@ -306,18 +321,87 @@
 ---
 
 ## Phase 6 — Backtesting Engine
-- [ ] Implement `run_backtest()` in `backtest_service.py`
-  - **Initialize `current_allocation` before loop from `price_data.iloc[0][tickers]` at day-1 weights** (prevents UnboundLocalError)
-  - Rebalance frequencies: `MONTHLY`, `QUARTERLY`, `ANNUALLY`, `NEVER`
-  - No transaction costs (documented as assumption in README)
-  - Benchmark: buy-and-hold SPY from day 1
-- [ ] Implement full tearsheet: CAGR, Sharpe, Sortino, Calmar, `calculate_beta_from_returns()`, Alpha, win rate, max drawdown, rebalance count
-- [ ] Wire into Celery task — backtests can take seconds on 10yr history
-- [ ] Store `BacktestResult` (JSONB tearsheet) in PostgreSQL
-- [ ] Smoke test: SPY-only portfolio 2018–2023, compare CAGR against published benchmarks
-- [ ] Run `/review` before marking Phase 6 complete — correctness-sensitive
+> **`/plan-eng-review` completed 2026-06-07** — architecture locked in decisions 56–70 above.
+> Run `/review` before marking Phase 6 complete (financial math phase, non-negotiable).
 
-**QoL:** `GET /api/v1/portfolios/{id}/backtests` returns list with summary stats (not full tearsheet) for the history panel.
+### Architecture locked (do not revisit without explicit user approval)
+
+- API: portfolio-scoped. `POST /portfolios/{id}/backtests`. Tickers/weights derived from `portfolio.holdings` via `portfolio_to_weights()` — enforce weight sum ≤ 1.0 ± 0.001 before inserting PENDING.
+- Date range: `start_date`/`end_date` ISO date fields. Minimum 30 calendar day gap enforced via Pydantic.
+- Benchmark: `portfolio.benchmark_ticker` (default `"SPY"`). If benchmark collides with a holding ticker, separate `yf.download()` call (decision 65).
+- yfinance fetch: `end_date + timedelta(days=1)` as the `end` param — yfinance `end` is exclusive (decision 67).
+- CAGR: `(final_value / initial_investment)^(252/n_trading_days) − 1` — true terminal CAGR; do NOT use `calculate_portfolio_metrics()` (decision 63).
+- NEVER rebalance: `equity_t = initial_investment × Σ(w_i × Π(1+r_{i,s}))` — true buy-and-hold; NOT daily-rebalanced cumprod (decision 66).
+- Rebalance timing: after first trading day's return in each new period boundary (decision 69).
+- Calmar: `Optional[float]`, `None` when `max_drawdown == 0` (decision 64).
+- Celery bridge: copy NullPool + asyncio.run() pattern from simulation_service.py into backtest_service.py; do NOT touch simulation_service.py (decision 61).
+- `strategy_name`: optional in request, auto-generated (`f"{rebalance_frequency} {start_date}–{end_date}"`) when null.
+- Data availability: check both late-start AND early-end >5 trading days → FAILURE before task (decision 60).
+
+### New files
+- `app/services/backtest_service.py` — `run_backtest_engine()` + `run_backtest` Celery task
+- `app/schemas/backtest.py` — `BacktestRequest`, `BacktestTearsheet`, `BacktestStatusResponse`, `BacktestSummary`, `BacktestSubmitResponse`
+- `app/api/v1/backtest.py` — POST submit, GET status, GET list
+- `alembic/versions/<ts>_add_backtest_status_columns.py` — adds `status`, `task_id`, `error`, `user_id`, `tickers`, `weights`; makes `tearsheet`/`daily_returns`/`equity_curve` nullable; backfills `user_id`
+
+### Modified files
+- `app/services/market_data_service.py` — add `_fetch_and_process_returns_by_date(tickers, start, end)` sync method
+- `app/main.py` — register backtest router
+- `app/celery_app.py` — add `"app.services.backtest_service"` to includes
+
+### Implementation tasks
+
+- [ ] **T1 — Migration**: add `backtest_status` enum + columns to `backtest_results`; `user_id` NOT NULL after backfill via `portfolio_id → portfolios.user_id`; nullable result blobs
+- [ ] **T2 — Schema**: `BacktestRequest` (start_date, end_date, rebalance_frequency, strategy_name?), `BacktestTearsheet` (cagr, sharpe, sortino, calmar: Optional[float], beta, alpha, win_rate, max_drawdown, rebalance_count, benchmark_cagr), `BacktestStatusResponse`, `BacktestSummary` (no equity_curve/daily_returns)
+- [ ] **T3 — MarketDataService**: add `_fetch_and_process_returns_by_date(tickers, start, end)` — sync, wraps yfinance with `end=end_date + timedelta(days=1)`, same data-quality pipeline as existing `_fetch_and_process_returns()`
+- [ ] **T4 — `run_backtest_engine()`**: pure function (no I/O), takes returns DataFrames (portfolio + benchmark) + weights + dates + rebalance_frequency; returns tearsheet dict + equity_curve + daily_returns
+  - Initialize `current_shares = weights * initial_investment / prices_day0` — day-1 allocation
+  - NEVER: `equity_t = initial_investment × Σ(w_i × Π(1+r_{i,s}))` (decision 66)
+  - MONTHLY/QUARTERLY/ANNUALLY: at first trading day of each new period, reset `current_shares` to `current_value × weights / prices_t` — apply AFTER day's return
+  - Benchmark: `benchmark_equity_t = initial_investment × Π(1 + r_bench_s for s=1..t)` (buy-and-hold, single asset)
+  - CAGR: `(final_value / initial_investment)^(252/n_trading_days) − 1` (decision 63)
+  - Sharpe, Sortino: reuse `calculate_sharpe()`, `calculate_sortino()` from risk_service.py
+  - Max drawdown: reuse `calculate_max_drawdown()` from risk_service.py
+  - Beta: `calculate_beta_from_returns(portfolio_daily_returns, benchmark_daily_returns)`
+  - Alpha: `CAGR_portfolio − (rfr + beta × (CAGR_benchmark − rfr))`; rfr = `get_risk_free_rate()` (sync; fallback 0.04); document static-rfr limitation (decision 59)
+  - Calmar: `cagr / abs(max_drawdown)` if `max_drawdown != 0` else `None` (decision 64)
+  - Win rate: `(daily_returns > 0).mean()` — documented as positive-return fraction (decision 68)
+  - equity_curve: `[{"date": d, "portfolio": v, "benchmark": b}, ...]` aligned by trading day
+- [ ] **T5 — Celery task `run_backtest`**: `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` — same timeout + NullPool + asyncio.run() pattern as Phase 5 (copied, not shared); write SUCCESS/FAILURE to DB; catch SoftTimeLimitExceeded + all exceptions with wrapped error DB writes
+- [ ] **T6 — API endpoints**:
+  - `POST /api/v1/portfolios/{portfolio_id}/backtests` — `CurrentUser`; validate portfolio ownership; call `portfolio_to_weights()`; enforce weight sum; fetch `portfolio.benchmark_ticker`; data availability check (fail fast if >5 trading days off); insert PENDING; `.delay()`; return submit response
+  - `GET /api/v1/portfolios/{portfolio_id}/backtests/{backtest_id}` — `CurrentUser`; filter `WHERE id=? AND user_id=?`; return full result
+  - `GET /api/v1/portfolios/{portfolio_id}/backtests` — `CurrentUser`; return `BacktestSummary` list (no equity_curve, no daily_returns)
+- [ ] **T7 — Tests** (`tests/test_backtest.py`):
+  - Math unit tests (deterministic fixtures):
+    - `run_backtest_engine` with constant daily-return fixtures → verify CAGR, Sharpe, drawdown by hand
+    - NEVER rebalance: `equity[-1] == initial × sum(w_i × (1+r_i)^n_days)`, `rebalance_count == 0`
+    - MONTHLY rebalance: `rebalance_count == number of month boundaries in date range`
+    - Win rate: 60% positive days → 0.6
+    - Jensen alpha with beta=1 → `alpha ≈ cagr_portfolio − cagr_benchmark`
+    - Calmar = `None` when no drawdown occurs
+    - All-negative returns: `max_drawdown < 0`, all equity_curve values declining
+  - API integration tests (mock Celery):
+    - POST unauthenticated → 401
+    - POST valid request → 202, returns backtest_id + PENDING
+    - POST non-owned portfolio → 404
+    - POST portfolio with no holdings → 422
+    - POST portfolio with weights not summing to 1.0 → 422
+    - GET /{id} unauthenticated → 401
+    - GET /{id} wrong user → 404
+    - GET /{id} PENDING → null tearsheet/equity_curve
+    - GET /{id} unknown ID → 404
+    - GET list → `BacktestSummary` items, no equity_curve
+    - GET list wrong user → empty list (not another user's backtests)
+  - Integration test (INTEGRATION_TESTS=1):
+    - SPY-only 2018-01-01 to 2022-12-31, NEVER rebalance → CAGR cross-checked against `calculate_portfolio_metrics()` (not used as CAGR source — just a sanity upper/lower bound)
+- [ ] Run `/review` before marking Phase 6 complete — **non-negotiable financial math gate**
+
+**NOT in scope (Phase 6):** Transaction costs, slippage, tax-loss harvesting, portfolio comparison endpoint, backtest caching in Redis (results are persisted in PostgreSQL), fractional shares math, intraday rebalance.
+
+**TODO-6:** Orphan cleanup for PENDING rows where `.delay()` raised (same pattern as TODO-4 from Phase 5 — acceptable at MVP scale).
+
+**QoL:** `GET /api/v1/portfolios/{id}/backtests` history panel list — implemented as part of T6.
 
 ---
 
@@ -383,7 +467,11 @@
 - [ ] Efficient frontier lower bound = min-variance return, not min individual return (Phase 4)
 - [ ] All optimizer results checked for `result.success` before appending (Phase 4)
 - [ ] Beta uses `_compute_beta` shared core — no duplicate math (Phase 3/6)
-- [ ] Backtest initializes `current_allocation` before loop (Phase 6)
+- [ ] Backtest initializes day-1 allocation from prices × weights before loop (Phase 6, decision 6)
+- [ ] Backtest CAGR uses `(end/start)^(252/n_days)−1`, NOT `(1+mean_daily)^252−1` (Phase 6, decision 63)
+- [ ] NEVER rebalance uses per-asset cumulative return sum, NOT daily-rebalanced cumprod (Phase 6, decision 66)
+- [ ] Calmar returns `None` when max_drawdown == 0 (Phase 6, decision 64)
+- [ ] yfinance `end` date is `end_date + timedelta(days=1)` (Phase 6, decision 67)
 - [ ] `^TNX` yield divided by 100 before use as risk-free rate (Phase 2)
 
 ---

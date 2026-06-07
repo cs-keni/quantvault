@@ -5,6 +5,33 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-07 (Phase 6 — Backtesting Engine architecture locked, ready to implement)
+
+`/plan-eng-review` complete. Architecture locked in PHASES.md decisions 56–70. Phase 6 is **not started** — implement T1 through T7 in order.
+
+**Critical gotchas for Phase 6 (do not skip):**
+- CAGR = `(final_value/initial_investment)^(252/n_trading_days)−1`. Do NOT pass this to `calculate_portfolio_metrics()` — that function returns `(1+mean_daily)^252−1` (wrong for backtesting).
+- NEVER rebalance: `equity_t = initial_investment × Σ(w_i × Π(1+r_{i,s}))`. NOT `cumprod(1 + daily_weighted_return)` — the latter secretly daily-rebalances.
+- yfinance `end` parameter is exclusive: always pass `end_date + timedelta(days=1)`.
+- Data availability check must be SYMMETRIC: late-start >5 trading days AND early-end >5 trading days both → FAILURE before Celery dispatch.
+- Benchmark source: `portfolio.benchmark_ticker` (not hardcoded SPY). If `benchmark_ticker` is also in portfolio holdings, use a separate `yf.download()` call for the benchmark.
+- Calmar field is `Optional[float]`, returns `None` when max_drawdown == 0.
+- Copy the NullPool + asyncio.run() DB bridge pattern from `simulation_service.py` into `backtest_service.py`. Do NOT modify `simulation_service.py` during Phase 6 work.
+- Migration must make `tearsheet`, `daily_returns`, `equity_curve` nullable (PENDING rows have no results yet) AND backfill `user_id` via `UPDATE backtest_results br SET user_id = p.user_id FROM portfolios p WHERE br.portfolio_id = p.id`.
+
+**New files to create:**
+- `app/services/backtest_service.py`
+- `app/schemas/backtest.py`
+- `app/api/v1/backtest.py`
+- `alembic/versions/<ts>_add_backtest_status_columns.py`
+
+**Files to modify:**
+- `app/services/market_data_service.py` — add `_fetch_and_process_returns_by_date(tickers, start, end)`
+- `app/main.py` — register backtest router
+- `app/celery_app.py` — add `"app.services.backtest_service"` to includes
+
+**Existing `BacktestResult` model** (`app/models/backtest_result.py`): has `RebalanceFrequency` enum (MONTHLY, QUARTERLY, ANNUALLY, NEVER), `portfolio_id`, `strategy_name`, `start_date`, `end_date`, `rebalance_frequency`, `initial_investment`, `tearsheet`, `daily_returns`, `equity_curve`. Missing: `status`, `task_id`, `error`, `user_id`, `tickers`, `weights`. These are added via migration.
+
 ## State as of 2026-06-07 (Phase 5 — Monte Carlo implemented, pending `/review`)
 
 Phase 5 code is implemented and verified, but the required financial-math `/review` checkpoint has **not** been run yet, so do not mark Phase 5 complete until that review passes.

@@ -3,6 +3,31 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 6: /plan-eng-review complete, architecture locked (decisions 56–70)
+
+Commit: (pending)
+
+Full `/plan-eng-review` for Phase 6 Backtesting Engine. 7 interactive decisions (D1–D7) + 5 cross-model tension decisions (D8–D12) resolved. Codex outside voice ran and surfaced 15 additional issues; 5 became explicit locked decisions, 10 absorbed into the implementation spec. 15 architecture decisions locked in PHASES.md (decisions 56–70).
+
+**Key decisions locked:**
+- True terminal CAGR `(end/start)^(252/n_days)−1` — NOT `calculate_portfolio_metrics()` geometric return (D8)
+- Copy NullPool bridge into backtest_service.py (do NOT touch simulation_service.py); extract _celery_db.py as Phase 7 cleanup (D9/D6 revised)
+- Calmar = `Optional[float]`, `None` when max_drawdown == 0 (D10) — JSON cannot represent Infinity
+- Benchmark = `portfolio.benchmark_ticker` (default SPY), with SPY-collision dedup (D11)
+- NEVER rebalance = true buy-and-hold `Σ(w_i × cumreturn_i)`, NOT daily-rebalanced cumprod (D12)
+- yfinance `end=end_date + timedelta(days=1)` (exclusive parameter, decision 67)
+- Data availability: check BOTH late-start AND early-end >5 trading days (decision 60)
+- Migration backfills `user_id` from portfolio → portfolios.user_id; makes result blobs nullable (decision 58)
+
+**7 implementation tasks ready for Codex:**
+- T1: Alembic migration (status/task_id/error/user_id/tickers/weights + nullable blobs + user_id backfill)
+- T2: Pydantic schemas (BacktestRequest, BacktestTearsheet, BacktestStatusResponse, BacktestSummary, BacktestSubmitResponse)
+- T3: `_fetch_and_process_returns_by_date()` in market_data_service.py
+- T4: `run_backtest_engine()` pure function in backtest_service.py
+- T5: `run_backtest` Celery task (copy NullPool bridge, same Phase 5 timeout + error pattern)
+- T6: API endpoints (POST submit, GET status, GET list)
+- T7: tests/test_backtest.py (7 math unit tests + 12 API integration tests + 1 integration smoke test)
+
 ## 2026-06-07 — Phase 5: /review pass — 6 fixes, Phase 5 complete
 
 Commit: aacfe0f
