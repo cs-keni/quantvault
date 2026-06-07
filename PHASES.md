@@ -218,9 +218,9 @@
 
 ---
 
-## Phase 5 — Monte Carlo Simulation
+## Phase 5 — Monte Carlo Simulation ✅ complete (2026-06-07, review passed)
 > **`/plan-eng-review` completed 2026-06-07** — architecture locked in decisions 39–55 above.
-> Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
+> **`/review` completed 2026-06-07** — 6 fixes applied, 134 tests pass.
 
 - [x] Add `app/models/simulation_result.py` — `SimulationResult` ORM model (decision 41):
   - `status`: native Postgres enum `simulation_status {PENDING, SUCCESS, FAILURE}` (decision 52)
@@ -295,11 +295,11 @@
     - `GET /simulation/{id}` PENDING status → null results
     - `GET /simulation/{id}` unknown ID → 404
 
-- [ ] Run `/review` before marking Phase 5 complete — **financial math must be correct**
+- [x] Run `/review` before marking Phase 5 complete — **financial math must be correct**
 
 **NOT in scope (Phase 5):** Comparison endpoint (two simulations in one response), list/delete/history endpoints, simulation caching (Redis), log-return simulation, ruin floor guard, rate limiting, Celery beat orphan cleanup (→ TODO-4).
 
-**Known limitation:** With `df=5` t-distribution and high `annual_volatility`, it is theoretically possible (probability < 0.1%) to draw a daily return < -100%, producing a negative portfolio value. At MVP scale this is not guarded (floor not applied). Document in `run_monte_carlo()` docstring.
+**Fixed in /review:** With `df=5` t-distribution and high `annual_volatility`, fat-tail draws can produce `1 + r_t < 0`, flipping portfolio value sign. Fixed by flooring at zero (`np.maximum(..., 0.0)`) — equity has limited liability.
 
 **QoL (deferred):** Comparison endpoint: run two simulations (current portfolio vs. rebalanced) and return both in one response.
 

@@ -209,3 +209,38 @@ async def test_simulation_get_unknown_id_returns_404(client: AsyncClient) -> Non
     resp = await client.get(f"/api/v1/simulation/{uuid.uuid4()}", headers=headers)
 
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_simulation_post_with_other_users_portfolio_returns_404(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_celery_dispatch(monkeypatch)
+    # Create portfolio under user A
+    headers_a = await _register_and_login(client)
+    portfolio_resp = await client.post(
+        "/api/v1/portfolios",
+        json={"name": "User A Portfolio"},
+        headers=headers_a,
+    )
+    assert portfolio_resp.status_code == 201
+    portfolio_id = portfolio_resp.json()["id"]
+
+    # User B attempts to submit a simulation referencing user A's portfolio_id
+    headers_b = await _register_and_login(client)
+    resp = await client.post(
+        "/api/v1/simulation/monte-carlo",
+        json=_payload(portfolio_id=portfolio_id),
+        headers=headers_b,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_simulation_request_rejects_duplicate_tickers() -> None:
+    with pytest.raises(ValidationError):
+        SimulationRequest(
+            tickers=["AAPL", "aapl"],
+            weights=[0.5, 0.5],
+        )

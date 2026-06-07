@@ -1,24 +1,22 @@
 # Current Task
 
-**Phase 5 — Monte Carlo Simulation** — implemented, pending `/review`
+**Phase 5 — Monte Carlo Simulation** ✅ complete (2026-06-07, review passed)
 
-Implementation completed 2026-06-07. `/plan-eng-review` complete (2026-06-07, commit `69689a3`). 17 decisions locked (PHASES.md decisions 39–55) were followed.
+`/review` pass complete. 6 fixes applied:
+1. Geometric → arithmetic annual return in `run_simulation` (`mean_daily_return * 252`)
+2. Zero floor on portfolio values (`np.maximum(..., 0.0)`)
+3. Error string truncation (`str(exc)[:2000]`)
+4. Error-handler DB writes wrapped in try/except
+5. Seed range constraint (`Field(ge=0, le=2_147_483_647)`)
+6. NullPool for Celery DB bridge + prefork constraint comment
 
-Implemented:
-- `app/models/simulation_result.py` + Alembic migration for `simulation_status` and `simulation_results`
-- `app/services/simulation_service.py` with `run_monte_carlo()` + `run_simulation` Celery task
-- `app/schemas/simulation.py`
-- `app/api/v1/simulation.py` + router registration in `app/main.py`
-- `tests/test_simulation.py` (19 tests)
+2 missing tests added: portfolio ownership 404, duplicate ticker 422.
 
-Latest checks:
-- `cd backend && .venv/bin/ruff check app tests alembic` — clean
-- `cd backend && .venv/bin/mypy app` — clean (36 source files)
-- `cd backend && .venv/bin/pytest -q` — 132 passed, 2 skipped
-- `cd backend && .venv/bin/alembic upgrade head` — migration applied locally
-- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
+Gates: 134 passed, 2 skipped, ruff clean, mypy clean.
 
-Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
+## Next
+
+**Phase 6 — Backtesting Engine**
 
 ---
 

@@ -3,9 +3,37 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 5: /review pass — 6 fixes, Phase 5 complete
+
+Commit: TBD (this commit)
+
+Mandatory `/review` checkpoint on Phase 5 Monte Carlo (financial math phase). 9 issues found across critical pass + adversarial subagent. 6 fixes applied; 3 were low-severity informational notes requiring no code change.
+
+**Fixes applied:**
+
+1. **Geometric → arithmetic annual return** (`simulation_service.py`): `run_simulation` was passing `metrics["annual_return"]` (geometric, `(1+μ_d)^252 - 1`) into `run_monte_carlo`. The spec requires arithmetic (`μ_d * 252`). Using geometric overestimates daily drift by ~4% relative, compounding to ~10.28% terminal value inflation over 30 years. Fixed: `metrics["mean_daily_return"] * 252`.
+
+2. **Zero floor on portfolio values** (`simulation_service.py`): Fat-tailed `t(df=5)` draws can produce `1 + r_t < 0` at very high volatilities, flipping the sign of `current_values` and letting them compound backward to nonsensical negatives. Fixed: `current_values = np.maximum(current_values * (1.0 + random_returns[day]), 0.0)`.
+
+3. **Error string truncation** (`simulation_service.py`): `str(exc)` could exceed the `String(2000)` ORM column, causing `_write_result_to_db` itself to raise `DataError` and leave the row PENDING forever. Fixed: `str(exc)[:2000]`.
+
+4. **Error-handler DB writes uncaught** (`simulation_service.py`): `_write_result_to_db_sync` calls inside both `except SoftTimeLimitExceeded` and `except Exception` handlers were uncaught; a DB failure there would propagate and leave rows PENDING. Fixed: wrapped each in its own `try/except Exception: _logger.exception(...)`.
+
+5. **Seed range constraint** (`schemas/simulation.py`): PostgreSQL `INTEGER` is 32-bit max (2,147,483,647); seeds above that cause `DataError` on INSERT before Celery dispatch. Fixed: `seed: Annotated[int, Field(ge=0, le=2_147_483_647)] | None = None`.
+
+6. **NullPool for Celery DB bridge** (`simulation_service.py`): Default SQLAlchemy pool creates 5 connections per single-use write. Fixed: `poolclass=NullPool` + comment documenting the prefork-only constraint of `asyncio.run()`.
+
+**Tests added:**
+- `test_simulation_post_with_other_users_portfolio_returns_404` — POST with another user's portfolio_id → 404 (covers D49)
+- `test_simulation_request_rejects_duplicate_tickers` — `["AAPL", "aapl"]` → ValidationError (covers D53)
+
+**Gates after fixes:** 134 passed, 2 skipped, ruff clean, mypy clean. **Phase 5 marked complete.**
+
+---
+
 ## 2026-06-07 — Phase 5: Monte Carlo Simulation implementation
 
-Commit: this implementation commit
+Commit: 9613e9b
 
 Implemented Phase 5 Monte Carlo Simulation according to PHASES.md decisions 39–55. Phase 5 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
 

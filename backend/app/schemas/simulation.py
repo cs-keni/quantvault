@@ -17,7 +17,7 @@ class SimulationRequest(BaseModel):
     years: Annotated[int, Field(ge=1, le=30)] = 10
     n_simulations: Annotated[int, Field(ge=1, le=1000)] = 500
     annual_contribution: Annotated[float, Field(ge=0)] = 0.0
-    seed: int | None = None
+    seed: Annotated[int, Field(ge=0, le=2_147_483_647)] | None = None
     portfolio_id: uuid.UUID | None = None
 
     @field_validator("tickers", mode="after")
@@ -44,8 +44,14 @@ class SimulationResponse(BaseModel):
     percentile_outcomes: dict[int, float]
     sample_paths: list[list[float]]
     mean_final_value: float
-    probability_of_profit: float
-    probability_of_doubling: float
+    probability_of_profit: Annotated[
+        float,
+        Field(description="Fraction of simulations where final value exceeds total outlay (initial_investment + annual_contribution * years)."),
+    ]
+    probability_of_doubling: Annotated[
+        float,
+        Field(description="Fraction of simulations where final value exceeds 2x total outlay (initial_investment + annual_contribution * years)."),
+    ]
     final_value_distribution: list[float]
     initial_investment: float
     years: int

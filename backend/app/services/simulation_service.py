@@ -18,6 +18,7 @@ import numpy.typing as npt
 import redis
 from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.celery_app import celery_app
 from app.core.config import settings
@@ -81,7 +82,8 @@ def run_monte_carlo(
     portfolio_values = np.empty((trading_days, n_simulations), dtype=np.float64)
     current_values = np.full(n_simulations, initial_investment, dtype=np.float64)
     for day in range(trading_days):
-        current_values *= 1.0 + random_returns[day]
+        # Floor at zero: equity has limited liability; negative values compound backward.
+        current_values = np.maximum(current_values * (1.0 + random_returns[day]), 0.0)
         if (day + 1) % _TRADING_DAYS == 0:
             current_values += annual_contribution
         portfolio_values[day] = current_values
@@ -122,7 +124,8 @@ async def _write_result_to_db(
     error: str | None = None,
     task_id: str | None = None,
 ) -> None:
-    engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
+    # NullPool: single-use connection — no pool overhead for one-off Celery writes.
+    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
     try:
         async with session_factory() as session:
@@ -147,6 +150,8 @@ def _write_result_to_db_sync(
     error: str | None = None,
     task_id: str | None = None,
 ) -> None:
+    # asyncio.run() is safe only with Celery's default prefork pool.
+    # Do not switch to --pool=gevent or --pool=eventlet without replacing this.
     asyncio.run(_write_result_to_db(simulation_id, status, result, error, task_id))
 
 
@@ -179,7 +184,9 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> Non
         metrics = calculate_portfolio_metrics(returns_df, weights)
         result = run_monte_carlo(
             portfolio_metrics={
-                "annualized_return": metrics["annual_return"],
+                # Use arithmetic annual return (mean_daily * 252) per the spec — NOT
+                # geometric annual return, which would overstate daily drift by ~4%.
+                "annualized_return": metrics["mean_daily_return"] * 252,
                 "annualized_volatility": metrics["annual_volatility"],
             },
             initial_investment=float(params["initial_investment"]),
@@ -196,21 +203,27 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> Non
             task_id=task_id,
         )
     except SoftTimeLimitExceeded:
-        _write_result_to_db_sync(
-            simulation_uuid,
-            SimulationStatus.FAILURE,
-            result=None,
-            error="timeout",
-            task_id=task_id,
-        )
+        try:
+            _write_result_to_db_sync(
+                simulation_uuid,
+                SimulationStatus.FAILURE,
+                result=None,
+                error="timeout",
+                task_id=task_id,
+            )
+        except Exception:
+            _logger.exception("failed to write timeout failure for simulation_id=%s", simulation_id)
     except Exception as exc:
         _logger.exception("simulation task failed simulation_id=%s", simulation_id)
-        _write_result_to_db_sync(
-            simulation_uuid,
-            SimulationStatus.FAILURE,
-            result=None,
-            error=str(exc),
-            task_id=task_id,
-        )
+        try:
+            _write_result_to_db_sync(
+                simulation_uuid,
+                SimulationStatus.FAILURE,
+                result=None,
+                error=str(exc)[:2000],
+                task_id=task_id,
+            )
+        except Exception:
+            _logger.exception("failed to write failure for simulation_id=%s", simulation_id)
     finally:
         cast(Any, redis_client).close()
