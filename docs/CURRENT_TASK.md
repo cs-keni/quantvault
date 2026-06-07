@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7f complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7g complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7g Backtest page is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7h Compare + Polish is next.
 
 ---
 
@@ -239,12 +239,27 @@ Verification:
 
 ---
 
-## Phase 7g — Backtest (`/portfolios/:id/backtest`)
+## Phase 7g — Backtest (`/portfolios/:id/backtest`) ✅ complete
 
-- Form: start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker
-- POST /portfolios/:id/backtests → poll GET /portfolios/:id/backtests/:backtest_id
-- Equity curve chart: portfolio vs. benchmark (EquityCurvePoint: `{ date: string, portfolio: float, benchmark: float }`)
-- Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (`null` → show "N/A", not blank), Max Drawdown, alpha, beta
+Completed 2026-06-07.
+
+- Added `BacktestPage` and wired `/portfolios/:id/backtest`.
+- Loads portfolio detail from `GET /portfolios/:id`.
+- Form inputs: start_date, end_date, rebalance_frequency, initial_investment.
+- Shows benchmark ticker from portfolio metadata; backend uses `portfolio.benchmark_ticker`, so no separate benchmark field is submitted.
+- Submits `POST /portfolios/:id/backtests`, then polls `GET /portfolios/:id/backtests/:backtest_id` until SUCCESS/FAILURE.
+- Renders tearsheet cards: CAGR, Sharpe, Sortino, Calmar (`null` → `N/A`), Max Drawdown, Alpha.
+- Renders equity curve chart: portfolio vs benchmark.
+
+Verification:
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed; Vite still warns main bundle >500 kB
+- `cd frontend && npm run lint` — passed
+
+- [x] Form: start_date, end_date, rebalance_frequency, initial_investment, benchmark display from portfolio metadata
+- [x] POST /portfolios/:id/backtests → poll GET /portfolios/:id/backtests/:backtest_id
+- [x] Equity curve chart: portfolio vs. benchmark (EquityCurvePoint: `{ date: string, portfolio: float, benchmark: float }`)
+- [x] Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (`null` → show "N/A", not blank), Max Drawdown, alpha
 
 ---
 

@@ -123,3 +123,49 @@ export interface SimulationStatusResponse {
   result: SimulationResponse | null;
   error: string | null;
 }
+
+export type RebalanceFrequency = "MONTHLY" | "QUARTERLY" | "ANNUALLY" | "NEVER";
+
+export interface BacktestTearsheet {
+  cagr: number;
+  sharpe: number;
+  sortino: number;
+  calmar: number | null;
+  beta: number;
+  alpha: number;
+  win_rate: number;
+  max_drawdown: number;
+  rebalance_count: number;
+  benchmark_cagr: number;
+  final_value: number;
+  benchmark_final_value: number;
+  n_trading_days: number;
+  risk_free_rate: number;
+}
+
+export interface EquityCurvePoint {
+  date: string;
+  portfolio: number;
+  benchmark: number;
+}
+
+export interface BacktestSubmitResponse {
+  backtest_id: string;
+  task_id: string;
+  status: string;
+}
+
+export interface BacktestStatusResponse {
+  backtest_id: string;
+  portfolio_id: string;
+  strategy_name: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+  rebalance_frequency: RebalanceFrequency;
+  initial_investment: string;
+  tearsheet: BacktestTearsheet | null;
+  daily_returns: number[] | null;
+  equity_curve: EquityCurvePoint[] | null;
+  error: string | null;
+}

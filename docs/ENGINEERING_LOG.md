@@ -3,6 +3,24 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7g: Backtest Page implemented
+
+Implemented the locked Phase 7g backtest page.
+
+**Changed:**
+- Added `BacktestPage` and wired `/portfolios/:id/backtest`.
+- Loads portfolio metadata and displays benchmark ticker from the portfolio because the backend request uses `portfolio.benchmark_ticker` rather than accepting a separate benchmark field.
+- Submits `POST /portfolios/:id/backtests` and polls `GET /portfolios/:id/backtests/:backtest_id` until SUCCESS/FAILURE.
+- Renders tearsheet cards and equity curve chart; Calmar `null` displays as `N/A`.
+- Added frontend backtest response types.
+
+**Checks:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed
+
+**Build note:** Vite still warns the main JS chunk is >500 kB due to Recharts in the main route bundle.
+
 ## 2026-06-07 — Phase 7f: Monte Carlo Page implemented
 
 Implemented the locked Phase 7f Monte Carlo page.

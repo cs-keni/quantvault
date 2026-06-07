@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7f complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7g complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7f Monte Carlo page are implemented and verified; Phase 7g Backtest page is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7g backtest page are implemented and verified; Phase 7h Compare + Polish is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -93,10 +93,23 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
 - `cd frontend && npm run lint` — clean
 
-**Next implementation slice: Phase 7g Backtest Page**
-- Build `/portfolios/:id/backtest`.
-- Form inputs: start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker.
-- POST `/portfolios/:id/backtests`, poll `GET /portfolios/:id/backtests/:backtest_id`, render equity curve and tearsheet cards.
+**Implemented in Phase 7g:**
+- `frontend/src/pages/BacktestPage.tsx` — backtest route.
+- Loads portfolio metadata and submits `POST /portfolios/:id/backtests`.
+- Polls `GET /portfolios/:id/backtests/:backtest_id` until terminal status.
+- Inputs: start_date, end_date, rebalance_frequency, initial_investment; benchmark is displayed from portfolio metadata because backend uses `portfolio.benchmark_ticker`.
+- Renders equity curve and tearsheet cards, with Calmar `null` displayed as `N/A`.
+- `frontend/src/types/api.ts` — backtest response types.
+
+**Verification after Phase 7g:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
+- `cd frontend && npm run lint` — clean
+
+**Next implementation slice: Phase 7h Compare + Polish**
+- Build `/compare`.
+- Add loading/error states where still missing.
+- Run `/qa` before marking Phase 7 complete.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)

@@ -485,9 +485,9 @@
 - [x] Loading/empty state while task runs; error state on FAILURE
 
 **Phase 7g — Backtest Page**
-- [ ] BacktestPage (`/portfolios/:id/backtest`): form (start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker), POST /portfolios/:id/backtests, poll GET /portfolios/:id/backtests/:backtest_id
-- [ ] Equity curve chart (portfolio vs. benchmark); EquityCurvePoint: `{ date, portfolio, benchmark }`
-- [ ] Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (may be null → "N/A"), Max Drawdown, Benchmark comparison
+- [x] BacktestPage (`/portfolios/:id/backtest`): form (start_date, end_date, rebalance_frequency, initial_investment), POST /portfolios/:id/backtests, poll GET /portfolios/:id/backtests/:backtest_id
+- [x] Equity curve chart (portfolio vs. benchmark); EquityCurvePoint: `{ date, portfolio, benchmark }`
+- [x] Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (may be null → "N/A"), Max Drawdown, Benchmark comparison
 
 **Phase 7h — Compare + Polish**
 - [ ] ComparePage (`/compare`): select 2+ portfolios, side-by-side metrics table

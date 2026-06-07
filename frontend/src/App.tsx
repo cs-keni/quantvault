@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AnalysisPage } from "./pages/AnalysisPage";
+import { BacktestPage } from "./pages/BacktestPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MonteCarloPage } from "./pages/MonteCarloPage";
@@ -97,7 +98,7 @@ function App() {
               path="/portfolios/:id/backtest"
               element={
                 <ProtectedRoute>
-                  <PlaceholderPage title="Backtest" />
+                  <BacktestPage />
                 </ProtectedRoute>
               }
             />
