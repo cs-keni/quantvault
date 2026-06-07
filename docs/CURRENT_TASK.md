@@ -1,31 +1,12 @@
 # Current Task
 
-**Phase 4 — Efficient Frontier** 🔄 implemented, pending `/review`
+**Phase 4 — Efficient Frontier** ✅ complete (2026-06-07, review passed)
 
-Implementation completed 2026-06-07. Architecture locked in PHASES.md decisions 28–38 was followed.
+`/review` pass complete. 2 informational fixes applied:
+1. Celery task cache-hit now catches deserialization errors (corrupt cache → re-fetch, not task FAILURE)
+2. `FrontierPoint.annual_return` and `.sharpe_ratio` fields documented with arithmetic/geometric convention
 
-**Implemented:**
-- `backend/app/schemas/portfolio.py` — `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse`
-- `backend/app/services/optimization_service.py` — min-variance, max-Sharpe, efficient frontier generation, Redis cache helpers, `compute_frontier` Celery task
-- `backend/app/celery_app.py` — registered `app.services.optimization_service`
-- `backend/app/api/v1/analysis.py` — `POST /analysis/frontier` and `GET /analysis/frontier/{task_id}` with auth, cache hit, async submit, and non-blocking poll
-- `backend/tests/test_efficient_frontier.py` — deterministic math tests plus API auth/validation/task-failure tests
-
-**Run `/review` before marking Phase 4 complete** (financial math phase, non-negotiable).
-
-**Latest checks:**
-- `cd backend && .venv/bin/ruff check app tests` — clean
-- `cd backend && .venv/bin/mypy app` — clean (32 source files)
-- `cd backend && .venv/bin/pytest -q` — 113 passed, 2 skipped (live-network market data tests)
-
-### Key implementation rules (all locked — do not re-debate):
-- Celery task: call `market_data_service._fetch_and_process_returns(sorted_tickers, period)` directly (sync); use `redis.Redis.from_url(settings.REDIS_URL)` (sync — NOT redis.asyncio). There is no FastAPI DI in Celery workers.
-- Optimizer: use **arithmetic** daily mean returns for `w.T @ mu >= target` constraint; report **geometric** annual return `(1+mean_daily_port_r)^252 - 1` in `FrontierPoint.annual_return`
-- Celery task decorator: `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` (yfinance can take up to 30s; 25s would kill the task before data arrives)
-- Auth: `CurrentUser` required on **both** endpoints (unauthenticated callers must not trigger yfinance + Celery work)
-- `AsyncResult.info` on FAILURE is a raw Python exception — **must** `str(result.info)` before including in response (FastAPI's JSON encoder raises HTTP 500 on raw exceptions)
-- Duplicate ticker check: uppercase-normalize first, then dedup — `["AAPL", "aapl"]` must be caught
-- Solver failure at an infeasible target return: skip the point, continue, return partial frontier
+Gates: 113 passed, 2 skipped, ruff clean, mypy clean.
 
 ---
 

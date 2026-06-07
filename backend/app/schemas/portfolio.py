@@ -166,9 +166,21 @@ class FrontierRequest(BaseModel):
 
 
 class FrontierPoint(BaseModel):
-    annual_return: float
+    annual_return: Annotated[
+        float,
+        Field(description="Geometrically compounded annual return: (1 + mean_daily)^252 - 1"),
+    ]
     annual_volatility: float
-    sharpe_ratio: float
+    sharpe_ratio: Annotated[
+        float,
+        Field(
+            description=(
+                "Sharpe ratio using arithmetic annual return in the numerator "
+                "(252 * mean_daily - rfr) / sigma. Slightly differs from computing "
+                "(annual_return - rfr) / annual_volatility using the geometric annual_return field."
+            )
+        ),
+    ]
     weights: dict[str, float]
 
 

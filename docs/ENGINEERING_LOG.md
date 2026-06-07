@@ -3,9 +3,21 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 4: /review pass — 2 fixes, Phase 4 complete
+
+Commit: (pending)
+
+Manual `/review` checklist pass on Phase 4 (direct-to-main workflow). Zero critical findings. Two informational fixes applied:
+
+1. **Corrupt cache falls through in Celery task** (`optimization_service.py:370`): `deserialize_frontier_result` inside the Celery task was not wrapped in try/except. Corrupt cache → task FAILURE instead of re-fetch. Fixed: added try/except + warning log, same pattern as `_get_cached_frontier` in `analysis.py`.
+
+2. **`FrontierPoint` fields undocumented re: arithmetic/geometric convention** (`portfolio.py:168`): `annual_return` is geometric but `sharpe_ratio` uses arithmetic return in the numerator. A consumer computing `(annual_return - rfr) / vol` from the API response gets a slightly different Sharpe. Fixed: added `description=` to both fields documenting the convention.
+
+Gates: 113 passed, 2 skipped, ruff clean, mypy clean. **Phase 4 marked complete.**
+
 ## 2026-06-07 — Phase 4: Efficient Frontier implementation
 
-Commit: this implementation commit
+Commit: 99cb890
 
 Implemented Phase 4 efficient frontier code, following PHASES.md decisions 28–38. Phase 4 is **not marked complete yet** because the required financial-math `/review` checkpoint still needs to run.
 

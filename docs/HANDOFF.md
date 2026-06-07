@@ -5,9 +5,13 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 4 — Efficient Frontier implemented, pending `/review`)
+## State as of 2026-06-07 (Phase 4 — Efficient Frontier complete ✅)
 
-Phase 4 code is implemented and verified, but the required financial-math `/review` checkpoint has **not** been run yet, so do not mark Phase 4 complete until that review passes.
+Phase 4 implemented, reviewed, and marked complete. `/review` pass found 2 informational issues (both fixed):
+1. `optimization_service.py` — Celery task cache deserialization errors now caught and logged (corrupt cache falls through to re-fetch instead of task FAILURE)
+2. `portfolio.py` — `FrontierPoint.annual_return` and `.sharpe_ratio` fields now have `description=` documenting the arithmetic/geometric return convention
+
+Gates: 113 passed, 2 skipped, ruff clean, mypy clean.
 
 **Implemented files:**
 - `app/schemas/portfolio.py` — frontier request/result/task schemas. `FrontierRequest.tickers` uppercases before duplicate detection and enforces 2–30 tickers with the Phase 2 ticker pattern.

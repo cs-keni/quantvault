@@ -195,7 +195,7 @@
     - `POST /frontier` > 30 tickers → 422
     - `GET /frontier/{task_id}` unauthenticated → 401
     - FAILURE state returns `{status: FAILURE, error: str}` not HTTP 500
-- [ ] Run `/review` before marking Phase 4 complete
+- [x] Run `/review` before marking Phase 4 complete — **done 2026-06-07 (2 informational fixes: corrupt cache fallback in Celery task, FrontierPoint field documentation)**
 
 **QoL:** Cache frontier result in Redis by `(sorted_uppercase_tickers, period)` with 24h TTL — re-running with same inputs is instant. Cache hit on POST returns result immediately (no Celery dispatch).
 

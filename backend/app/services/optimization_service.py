@@ -367,7 +367,10 @@ def compute_frontier(self: Any, tickers: list[str], period: str) -> dict[str, An
     try:
         cached = cast(bytes | str | None, redis_client.get(cache_key))
         if cached is not None:
-            return deserialize_frontier_result(cached).model_dump(mode="json")
+            try:
+                return deserialize_frontier_result(cached).model_dump(mode="json")
+            except (ValueError, Exception) as exc:
+                _logger.warning("frontier cache deserialization failed key=%s: %s", cache_key, exc)
 
         market_service = MarketDataService(cast(Any, redis_client))
         returns_df, dropped = market_service._fetch_and_process_returns(normalized_tickers, period)
