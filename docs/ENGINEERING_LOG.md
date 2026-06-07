@@ -3,6 +3,25 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7e: Analysis Page implemented
+
+Implemented the locked Phase 7e analysis page.
+
+**Changed:**
+- Added `AnalysisPage` and wired `/portfolios/:id/analysis`.
+- Loads portfolio details and metrics for period tokens `1mo / 6mo / 1y / 2y / max`.
+- Added risk cards, efficient-frontier scatter chart, and correlation heatmap.
+- Implemented frontier cache-hit branch: `task_id === null && status === "SUCCESS"` renders immediately without polling.
+- Implemented frontier polling with stop condition `['SUCCESS', 'FAILURE'].includes(status)` to cover STARTED/RETRY states.
+- Added frontend frontier response types.
+
+**Checks:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed
+- `cd frontend && npm run lint` — passed after one transient Node/V8 native crash on the first lint run; immediate reruns passed.
+
+**Build note:** Vite still warns the main JS chunk is >500 kB due to Recharts in the main route bundle.
+
 ## 2026-06-07 — Phase 7d: Portfolio Builder implemented
 
 Implemented the locked Phase 7d portfolio builder.

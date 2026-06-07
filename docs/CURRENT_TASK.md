@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7d complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7e complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7e Analysis Page is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7f Monte Carlo page is next.
 
 ---
 
@@ -180,7 +180,26 @@ because they would require an intentional backend enum migration.
 
 ---
 
-## Phase 7e — Analysis Page (`/portfolios/:id/analysis`)
+## Phase 7e — Analysis Page (`/portfolios/:id/analysis`) ✅ complete
+
+Completed 2026-06-07.
+
+- Added `AnalysisPage` and wired `/portfolios/:id/analysis`.
+- Loads portfolio detail from `GET /portfolios/:id`.
+- Loads metrics from `GET /analysis/portfolios/:id/metrics` with period toggle `1mo / 6mo / 1y / 2y / max`.
+- Shows reusable-style risk cards for Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown.
+- Implements efficient-frontier submit flow:
+  - `POST /analysis/frontier`
+  - if `task_id === null && status === "SUCCESS"`, renders cached result immediately with no polling
+  - otherwise polls `GET /analysis/frontier/:task_id`
+  - polling stop condition uses `['SUCCESS', 'FAILURE'].includes(status)`
+- Added frontier scatter chart with current portfolio, min-variance, and max-Sharpe points; tooltip shows weights.
+- Added correlation heatmap from metrics correlation matrix.
+
+Verification:
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed; Vite still warns main bundle >500 kB
+- `cd frontend && npm run lint` — passed
 
 Efficient Frontier polling pattern (critical — read carefully):
 ```ts
@@ -190,9 +209,9 @@ Efficient Frontier polling pattern (critical — read carefully):
 // Polling stop: refetchInterval: (query) => ['SUCCESS', 'FAILURE'].includes(query.state.data?.status) ? false : 2000
 // Covers STARTED/RETRY states — do NOT stop only on PENDING completion
 ```
-- Frontier chart: Recharts scatter; current portfolio point (indigo dot), min-variance star, max-Sharpe star; hover tooltip shows weights
-- Risk metrics cards (reuse from Dashboard)
-- Correlation heatmap
+- [x] Frontier chart: Recharts scatter; current portfolio point, min-variance point, max-Sharpe point; hover tooltip shows weights
+- [x] Risk metrics cards
+- [x] Correlation heatmap
 
 ---
 

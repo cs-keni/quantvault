@@ -473,11 +473,11 @@
 - [x] Unit test: weight validator (sum=100%, duplicates, empty)
 
 **Phase 7e — Analysis Page**
-- [ ] AnalysisPage (`/portfolios/:id/analysis`): Efficient Frontier scatter with TanStack Query polling
-- [ ] Polling: POST /analysis/frontier → if task_id null (cache hit, status SUCCESS) skip poll; else poll GET /analysis/frontier/:task_id until SUCCESS/FAILURE; stop condition: `['SUCCESS','FAILURE'].includes(status)` (covers STARTED/RETRY states)
-- [ ] Frontier chart: current portfolio point (indigo dot), min-variance star, max-Sharpe star, hover tooltip shows weights
-- [ ] Correlation heatmap (Recharts or CSS grid)
-- [ ] Risk metrics cards (reuse from Dashboard)
+- [x] AnalysisPage (`/portfolios/:id/analysis`): Efficient Frontier scatter with TanStack Query polling
+- [x] Polling: POST /analysis/frontier → if task_id null (cache hit, status SUCCESS) skip poll; else poll GET /analysis/frontier/:task_id until SUCCESS/FAILURE; stop condition: `['SUCCESS','FAILURE'].includes(status)` (covers STARTED/RETRY states)
+- [x] Frontier chart: current portfolio point, min-variance point, max-Sharpe point, hover tooltip shows weights
+- [x] Correlation heatmap (Recharts or CSS grid)
+- [x] Risk metrics cards (reuse from Dashboard)
 
 **Phase 7f — Monte Carlo Page**
 - [ ] MonteCarloPage (`/portfolios/:id/simulate`): form (years, simulations, initial_investment, annual_contribution), POST /simulation/monte-carlo, poll GET /simulation/:id

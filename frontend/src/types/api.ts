@@ -65,3 +65,35 @@ export interface PortfolioMetricsResponse {
   n_trading_days: number;
   dropped_tickers: string[];
 }
+
+export interface FrontierPoint {
+  annual_return: number;
+  annual_volatility: number;
+  sharpe_ratio: number;
+  weights: Record<string, number>;
+}
+
+export interface FrontierResult {
+  tickers: string[];
+  period: string;
+  risk_free_rate: number;
+  frontier: FrontierPoint[];
+  min_variance: FrontierPoint;
+  max_sharpe: FrontierPoint;
+  dropped_tickers: string[];
+  n_trading_days: number;
+}
+
+export interface FrontierSubmitResponse {
+  task_id: string | null;
+  status: string;
+  result: FrontierResult | null;
+  error: string | null;
+}
+
+export interface FrontierTaskStatus {
+  task_id: string;
+  status: string;
+  result: FrontierResult | null;
+  error: string | null;
+}

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
+import { AnalysisPage } from "./pages/AnalysisPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
@@ -79,7 +80,7 @@ function App() {
               path="/portfolios/:id/analysis"
               element={
                 <ProtectedRoute>
-                  <PlaceholderPage title="Analysis" />
+                  <AnalysisPage />
                 </ProtectedRoute>
               }
             />

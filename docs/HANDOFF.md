@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7d complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7e complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation, Phase 7b auth pages, Phase 7c dashboard, and Phase 7d portfolio builder are implemented and verified; Phase 7e Analysis Page is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation through Phase 7e analysis page are implemented and verified; Phase 7f Monte Carlo page is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -66,10 +66,25 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
 - `cd frontend && npm run lint` — clean
 
-**Next implementation slice: Phase 7e Analysis Page**
-- Build `AnalysisPage` for `/portfolios/:id/analysis`.
-- Implement efficient frontier cache-hit and polling behavior exactly as locked.
-- Reuse dashboard risk cards where practical; add frontier scatter and correlation heatmap.
+**Implemented in Phase 7e:**
+- `frontend/src/pages/AnalysisPage.tsx` — portfolio analysis route.
+- Loads portfolio detail and metrics for `1mo / 6mo / 1y / 2y / max`.
+- Implements frontier POST cache-hit path (`task_id=null`, `SUCCESS`) without polling.
+- Polls task status until `SUCCESS` or `FAILURE`, covering STARTED/RETRY intermediate states.
+- Renders Recharts frontier scatter with current, min-variance, and max-Sharpe points; tooltip includes weights.
+- Renders correlation heatmap from `PortfolioMetricsResponse.correlation`.
+- `frontend/src/types/api.ts` — frontier response types.
+
+**Verification after Phase 7e:**
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — clean; same non-blocking >500 kB chunk warning remains
+- `cd frontend && npm run lint` — clean
+
+**Next implementation slice: Phase 7f Monte Carlo Page**
+- Build `/portfolios/:id/simulate`.
+- Form inputs: years, n_simulations, initial_investment, annual_contribution.
+- POST `/simulation/monte-carlo`, then poll `GET /simulation/:id` until SUCCESS/FAILURE.
+- Chart sampled paths and percentile bands.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)
