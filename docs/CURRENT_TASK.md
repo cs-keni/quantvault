@@ -1,103 +1,165 @@
 # Current Task
 
-**Phase 5 — Monte Carlo Simulation** ✅ complete (2026-06-07, review passed)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, implementation not started)
 
-`/review` pass complete. 6 fixes applied:
-1. Geometric → arithmetic annual return in `run_simulation` (`mean_daily_return * 252`)
-2. Zero floor on portfolio values (`np.maximum(..., 0.0)`)
-3. Error string truncation (`str(exc)[:2000]`)
-4. Error-handler DB writes wrapped in try/except
-5. Seed range constraint (`Field(ge=0, le=2_147_483_647)`)
-6. NullPool for Celery DB bridge + prefork constraint comment
+`/plan-eng-review` complete. All decisions locked. Start with Phase 7a.
 
-2 missing tests added: portfolio ownership 404, duplicate ticker 422.
+---
 
-Gates: 134 passed, 2 skipped, ruff clean, mypy clean.
+## Phase 7a — Foundation (blocking dependency for everything else)
 
-## Current
+### Step 1: Install missing packages
+```bash
+cd frontend && npm install react-hook-form vitest @testing-library/react @testing-library/user-event jsdom --save-dev
+```
+
+### Step 2: Vite dev proxy (`frontend/vite.config.ts`)
+Add under `server`:
+```ts
+proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: true } }
+```
+
+### Step 3: nginx API proxy (`frontend/nginx.conf`)
+Add before the SPA catch-all `location /`:
+```nginx
+location /api/ {
+    proxy_pass http://backend:8000;
+}
+```
+
+### Step 4: Rewrite `frontend/src/services/apiClient.ts`
+- `baseURL: '/api/v1'` (relative — no VITE_API_BASE_URL needed)
+- Request interceptor: attach access token from Zustand store (`Authorization: Bearer <token>`)
+- Response interceptor: deduplicated refresh lock pattern below; `_retry` guard; skip on `/auth/login` and `/auth/refresh` paths
+
+```ts
+let refreshPromise: Promise<string> | null = null;
+// On 401: if (!config._retry) { config._retry = true; refreshPromise ??= authStore.silentRefresh().finally(() => { refreshPromise = null; }); const token = await refreshPromise; ... }
+```
+
+### Step 5: Add GET /auth/me backend endpoint
+File: `backend/app/api/v1/auth.py`
+- `GET /me` → returns `UserRead` for `current_user`
+- Requires `CurrentUser` dependency (same pattern as other protected routes)
+
+### Step 6: Add daily_returns to PortfolioMetricsResponse
+Files:
+- `backend/app/schemas/portfolio.py` — add `daily_returns: list[float]` to `PortfolioMetricsResponse`
+- `backend/app/services/risk_service.py` — populate `daily_returns` from the returns series already computed for VaR (it's already computed — just include it in the response)
+
+### Step 7: Zustand authStore (`frontend/src/store/authStore.ts`)
+```ts
+interface AuthState {
+  user: UserRead | null;
+  accessToken: string | null;
+  setTokens(access: string, refresh: string): void;
+  logout(): void;
+  silentRefresh(): Promise<string>;
+}
+```
+- `setTokens`: store access token in memory (`accessToken`), write refresh token to `localStorage`
+- `silentRefresh`: read `localStorage.getItem('refresh_token')`, POST /auth/refresh, store new tokens; returns new access token
+- On app init: call `silentRefresh()` if localStorage has a refresh token, then GET /auth/me to hydrate `user`
+
+### Step 8: ProtectedRoute + full routing (`frontend/src/App.tsx`)
+- `ProtectedRoute`: checks `accessToken !== null`; redirects to `/login` if missing
+- Routes: `/login`, `/register` (public); `/dashboard`, `/portfolios/new`, `/portfolios/:id/analysis`, `/portfolios/:id/simulate`, `/portfolios/:id/backtest`, `/compare` (all protected)
+
+---
+
+## Phase 7b — Auth Pages
+
+### LoginPage (`/login`)
+- Centered card layout (min-h-screen flex items-center justify-center)
+- React Hook Form: email + password fields with validation
+- POST /auth/login → `authStore.setTokens(access, refresh)` → navigate('/dashboard')
+- 401 → inline error "Invalid email or password"
+
+### RegisterPage (`/register`)
+- Same card layout
+- POST /auth/register (returns UserRead) → then auto POST /auth/login → navigate('/dashboard')
+- 409 → "Email already registered"
+
+### Unit test: authStore + refresh lock
+`frontend/src/store/__tests__/authStore.test.ts`
+- silentRefresh() called by 5 concurrent components → exactly 1 POST /auth/refresh
+- logout() clears accessToken from memory AND localStorage
+- _retry guard: 401 on /auth/refresh path does NOT trigger another refresh
+- No refresh_token in localStorage → silentRefresh() rejects without hitting backend
+
+---
+
+## Phase 7c — Dashboard (`/dashboard`)
+
+- Portfolio selector dropdown (GET /portfolios)
+- Period toggle: 1mo / 6mo / 1y / 2y / max (maps to backend's period enum; NOT 1D/1W/1M)
+- Risk metrics cards from GET /portfolios/:id/metrics: Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown
+- Return distribution histogram (uses `daily_returns` from PortfolioMetricsResponse — requires Step 6)
+- Staggered card entrance animations; `useRef hasAnimated` guard to prevent re-animation on TanStack Query cache refetch; stable `portfolio.id` keys (not array index)
+- Animated number counters on metric values (count up on load)
+- Loading skeletons + error state with retry button
+
+---
+
+## Phase 7d — Portfolio Builder (`/portfolios/new`)
+
+- Ticker input, `asset_class` dropdown (EQUITY / BOND / REAL_ESTATE / COMMODITY / CRYPTO / CASH / OTHER — required by HoldingCreate schema)
+- `target_weight` input (decimal, 0–1 or percent — clarify with backend schema)
+- Optional: `current_shares`, `notes`
+- Live weight sum indicator: green when sum = 100%, red when > 100%, animated bar
+- POST /portfolios creates portfolio + holdings
+- Unit test: weight validator (sum=100% valid, sum>100% invalid, duplicates invalid, empty invalid)
+
+---
+
+## Phase 7e — Analysis Page (`/portfolios/:id/analysis`)
+
+Efficient Frontier polling pattern (critical — read carefully):
+```ts
+// Step 1: POST /analysis/frontier
+// Step 2: if (response.task_id === null && response.status === 'SUCCESS') → use result directly, no polling
+// Step 3: else → poll GET /analysis/frontier/:task_id
+// Polling stop: refetchInterval: (query) => ['SUCCESS', 'FAILURE'].includes(query.state.data?.status) ? false : 2000
+// Covers STARTED/RETRY states — do NOT stop only on PENDING completion
+```
+- Frontier chart: Recharts scatter; current portfolio point (indigo dot), min-variance star, max-Sharpe star; hover tooltip shows weights
+- Risk metrics cards (reuse from Dashboard)
+- Correlation heatmap
+
+---
+
+## Phase 7f — Monte Carlo (`/portfolios/:id/simulate`)
+
+- Form: years, n_simulations, initial_investment, annual_contribution (optional)
+- POST /simulation/monte-carlo → poll GET /simulation/:id until SUCCESS/FAILURE
+- Chart: 20 sampled paths (light gray, low opacity), P5/P25/P50/P75/P95 percentile bands, initial investment reference line (dashed)
+- Loading skeleton while task runs; FAILURE → error with retry
+
+---
+
+## Phase 7g — Backtest (`/portfolios/:id/backtest`)
+
+- Form: start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker
+- POST /portfolios/:id/backtests → poll GET /portfolios/:id/backtests/:backtest_id
+- Equity curve chart: portfolio vs. benchmark (EquityCurvePoint: `{ date: string, portfolio: float, benchmark: float }`)
+- Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (`null` → show "N/A", not blank), Max Drawdown, alpha, beta
+
+---
+
+## Phase 7h — Compare + Polish
+
+- ComparePage (`/compare`): multi-portfolio selector, side-by-side metrics table
+- Global: loading skeletons on all data-fetching views, error states with retry
+- Run `/qa` before marking Phase 7 complete
+
+---
+
+## Previously complete
 
 **Phase 6 — Backtesting Engine** ✅ complete (2026-06-07, review passed)
-
-`/review` pass complete. 3 fixes applied:
-1. Status guard in `_write_result_to_db` — prevents duplicate task execution from overwriting settled results; also prevents SoftTimeLimitExceeded from downgrading SUCCESS→FAILURE.
-2. Single-commit task dispatch — pre-generates `task_id` before `BacktestResult` creation, stored in the same commit, eliminating two-commit orphan window.
-3. isfinite guard on `portfolio_equity` — raises descriptive ValueError before JSONB write fails cryptically on inf/nan values.
-
-Financial math verified correct: CAGR formula, buy-and-hold, Calmar=None, yfinance end-exclusivity, symmetric data availability, Jensen alpha.
-
-Gates: ruff clean, mypy clean. 7 deterministic math tests pass.
-
----
-
+**Phase 5 — Monte Carlo Simulation** ✅ complete (2026-06-07, review passed)
 **Phase 4 — Efficient Frontier** ✅ complete (2026-06-07, review passed)
-
-`/review` pass complete. 2 informational fixes applied:
-1. Celery task cache-hit now catches deserialization errors (corrupt cache → re-fetch, not task FAILURE)
-2. `FrontierPoint.annual_return` and `.sharpe_ratio` fields documented with arithmetic/geometric convention
-
-Gates: 113 passed, 2 skipped, ruff clean, mypy clean.
-
----
-
 **Phase 3 — Portfolio Service and Risk Metrics** ✅ complete (review passed)
-
-Implementation complete. 102 tests passing (2 skipped — integration-only), ruff clean.
-
-All financial functions verified against hand-derivable ground-truth values in `tests/fixtures/known_values.py`.
-
-`/review` pass complete — 6 bugs found and fixed (auth missing on ad-hoc endpoint, confidence IndexError, correlation NaN, update_portfolio None check, benchmark_ticker pattern, ad-hoc weight-sum validation). See ENGINEERING_LOG.md 2026-06-06.
-
-**T6 (^TNX live verification)** — still open, network-blocked. Formula confirmed as `/ 100` via fallback cross-check. Verify when Yahoo Finance is reachable from WSL2.
-
----
-
-**Phase 1 — Domain, Database, and Auth** ✅ complete, verified end-to-end
-
-Built the domain layer and JWT auth on top of the Phase 0 scaffold:
-
-- [x] SQLAlchemy ORM models: `User`, `Portfolio`, `Holding`, `BacktestResult`
-      (incl. `AssetClass`/`RebalanceFrequency` native Postgres enums,
-      `User.default_portfolio_id` circular FK via `use_alter`/`post_update`)
-- [x] Alembic initial migration (`30594d39da38`) — creates all 4 tables + enums
-- [x] `portfolio_to_weights()` in `portfolio_service.py` — the single
-      `Decimal` → `float64` conversion point for downstream numpy/scipy math
-- [x] JWT auth (PyJWT): `/auth/register`, `/auth/login`, `/auth/refresh`,
-      `app/dependencies.py::get_current_user`
-- [x] Unit tests for auth flows — 19 tests covering register/login/refresh/
-      `get_current_user`, incl. expired/malformed/wrong-type/deactivated/
-      unknown-user edge cases (full suite: 20 passed)
-- [x] Seed script (`make seed`) — idempotent demo user + three-fund portfolio
-      (VTI 60% / BND 30% / VXUS 10%, weights sum to 1.0 exactly)
-- [x] Manual `/review` pass (see `ENGINEERING_LOG.md` for findings + fixes)
-
-**Verified live**:
-- `ruff check`/`ruff format` — clean
-- `mypy app` — clean (23 source files)
-- `pytest` (full suite) — 20 passed
-- `alembic check` — no diff detected
-- `make seed` — creates demo data end-to-end against the dev DB; idempotent on re-run
-
-**Fixed along the way** (see `ENGINEERING_LOG.md` 2026-06-06 for full root-cause
-write-ups): a latent pytest-asyncio event-loop mismatch in the Phase 0
-`conftest.py` (fixtures vs. test functions on different loops), a dev-DB
-schema/`alembic_version` desync, and a `register` race condition surfaced
-during manual review (concurrent duplicate signups raised a raw 500 instead
-of 409 — now caught and translated).
-
-## Next
-
-Run `/review` before marking Phase 2 complete (per PHASES.md skill-routing checkpoints).
-Then Phase 3 — Risk and Return Metrics.
-
-**Phase 2 implementation summary:**
-- `app/core/redis.py` — Redis singleton + `get_redis()` DI
-- `app/services/market_data_service.py` — `MarketDataService` with `_cache_through()`,
-  `get_historical_returns()`, `get_risk_free_rate()` (^TNX ÷ 100), `get_ticker_info()`,
-  `get_quote()`, `search_tickers()`, `validate_tickers()`
-- `app/schemas/market_data.py`, `app/api/v1/market_data.py` — 4 public endpoints
-- `tests/test_market_data.py` — 19 unit tests + 2 smoke tests (INTEGRATION_TESTS=1)
-- All gates: ruff clean, mypy clean, 39 tests passing
-
-**T6 (^TNX live verification)** — still open, network-blocked. Formula confirmed as `/ 100`
-via fallback cross-check and `test_rfr_decimal_conversion`. Verify when Yahoo Finance
-is reachable from WSL2.
+**Phase 2 — Market Data Service** ✅ complete
+**Phase 1 — Domain, Database, and Auth** ✅ complete
+**Phase 0 — Scaffold** ✅ complete

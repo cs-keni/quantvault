@@ -80,7 +80,7 @@ for the full list with rationale. The ones that change *how code is written*:
   Dropped tickers from yfinance are task FAILURE, not silent weight
   re-normalization. Celery DB writes use `asyncio.run()` with a fresh async
   engine per write.
-- **Backtesting engine (Phase 6 — implemented, pending `/review`)**:
+- **Backtesting engine (Phase 6 — complete ✅)**:
   `backtest_service.py` owns the pure math engine and Celery task. Results are
   persisted on `backtest_results`; POST creates `PENDING`, Celery writes
   `SUCCESS`/`FAILURE`, and GET filters by `id AND user_id`. CAGR is true
@@ -145,6 +145,33 @@ for the full list with rationale. The ones that change *how code is written*:
 - Test fixtures with hand-computable expected values live in
   `tests/fixtures/known_values.py` (Phase 3 prerequisite — lock these *before*
   implementing any financial function).
+
+## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
+
+**Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
+
+**apiClient.ts pattern (full rewrite from stub):**
+- `baseURL: '/api/v1'` (relative — nginx/Vite proxy handles routing; no VITE_API_BASE_URL)
+- Request interceptor: attach `Authorization: Bearer <accessToken>` from Zustand store
+- Response interceptor: deduplicated refresh lock (`let refreshPromise: Promise<string> | null = null`); on 401, all concurrent requests queue on the same promise; `config._retry` flag prevents re-entry; skip on `/auth/login` and `/auth/refresh` paths
+
+**nginx proxy (production Docker):** `location /api/ { proxy_pass http://backend:8000; }`
+**Vite dev proxy:** `server.proxy = { '/api': { target: 'http://localhost:8000', changeOrigin: true } }`
+
+**API surface — key facts for frontend:**
+- POST /auth/register → `UserRead` (NOT tokens); frontend must auto-POST /auth/login after register
+- POST /auth/login → `TokenResponse { access_token, refresh_token }`
+- GET /auth/me → `UserRead` (NEW endpoint — added in Phase 7a)
+- POST /auth/refresh → `TokenResponse`
+- GET /portfolios/:id/metrics → `PortfolioMetricsResponse` (includes `daily_returns: list[float]` after Phase 7a backend change)
+- POST /analysis/frontier → `FrontierSubmitResponse { task_id: string | null, status }` — `task_id` is null on cache hit (status=SUCCESS immediately); frontend must branch
+- GET /analysis/frontier/:task_id → poll; stop when `['SUCCESS','FAILURE'].includes(status)` (Celery can also return STARTED/RETRY — do NOT stop only on non-PENDING)
+- HoldingCreate requires `asset_class: AssetClass` (enum: EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER) — portfolio builder UI must include this dropdown
+- Period toggle tokens: `1mo / 6mo / 1y / 2y / max` (NOT 1D/1W/1M — those don't exist in backend)
+
+**Testing:** Vitest + @testing-library/react + @testing-library/user-event + jsdom. Install: `npm install vitest @testing-library/react @testing-library/user-event jsdom --save-dev`
+
+**Dashboard scope (redesigned from original spec):** Shows risk metrics from GET /portfolios/:id/metrics. No "portfolio value" widget (no endpoint). No "top movers" (no endpoint). Period toggle controls metrics recalc window.
 
 ## Design tokens (locked)
 

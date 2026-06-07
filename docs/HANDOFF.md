@@ -5,7 +5,42 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 6 — Backtesting Engine implemented, pending `/review`)
+## State as of 2026-06-07 (Phase 7 — Frontend, architecture locked, ready to implement)
+
+`/plan-eng-review` complete for Phase 7. All decisions locked. No code written yet — this is the start state for implementation.
+
+**Two small backend changes required before Phase 7 is feature-complete:**
+1. `backend/app/api/v1/auth.py` — add `GET /auth/me` endpoint returning `UserRead` for the current user (authStore needs it to hydrate user profile on init)
+2. `backend/app/schemas/portfolio.py` + `backend/app/services/risk_service.py` — add `daily_returns: list[float]` to `PortfolioMetricsResponse`; populate from the returns series already computed for VaR
+
+**Frontend files that exist but need work:**
+- `frontend/src/services/apiClient.ts` — **full rewrite needed**: baseURL must be `/api/v1` (relative, not `http://localhost:8000/api/v1`); add request interceptor to attach access token; add response interceptor with deduplicated refresh lock
+- `frontend/vite.config.ts` — add `server.proxy = { '/api': { target: 'http://localhost:8000', changeOrigin: true } }`
+- `frontend/nginx.conf` — add `location /api/ { proxy_pass http://backend:8000; }` before the SPA catch-all
+- `frontend/src/App.tsx` — add full routing (all 8 pages) + `ProtectedRoute` wrapper
+
+**Missing npm packages (install before any frontend work):**
+```bash
+cd frontend && npm install react-hook-form vitest @testing-library/react @testing-library/user-event jsdom --save-dev
+```
+
+**Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
+- Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)
+- Deduplicated refresh lock: `let refreshPromise: Promise<string> | null = null` in apiClient.ts response interceptor — all concurrent 401s queue on one promise; `_retry` flag prevents infinite loop; skip interceptor on `/auth/login` and `/auth/refresh` paths
+- nginx proxy + Vite dev proxy pattern — apiClient.baseURL = `/api/v1` (relative); no VITE_API_BASE_URL build arg needed
+- Dashboard redesigned to show risk metrics from GET /portfolios/:id/metrics (no portfolio-value endpoint exists); period toggle uses 1mo/6mo/1y/2y/max (not 1D/1W/1M)
+- Polling stop condition: `!['SUCCESS', 'FAILURE'].includes(status)` — covers STARTED/RETRY Celery states; POST /frontier can return task_id=null + SUCCESS on cache hit (skip polling in that case)
+- /register returns UserRead (not tokens) — auto POST /auth/login after register, then redirect /dashboard
+- HoldingCreate requires `asset_class` (enum: EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER) — portfolio builder UI must include dropdown
+- Vitest + @testing-library/react for unit tests: auth store, refresh lock, weight validator
+
+**NOT in scope for Phase 7:** portfolio value widget, 1D/1W toggles, cross-tab BroadcastChannel (TODO-9), OpenAPI type gen (TODO-10)
+
+**Implementation order:** Phase 7a (foundation + backend changes) → 7b (auth pages) → 7c (dashboard) → 7d (portfolio builder) → 7e (analysis/frontier) → 7f (Monte Carlo) → 7g (backtest) → 7h (compare + polish). Run `/qa` before marking Phase 7 complete.
+
+---
+
+## State as of 2026-06-07 (Phase 6 — Backtesting Engine complete ✅)
 
 Phase 6 T1–T7 are implemented and verified, but the mandatory financial-math `/review` checkpoint has **not** been run yet. Do not mark Phase 6 complete until that review passes.
 
@@ -237,7 +272,13 @@ would mean importing nonexistent modules (dangling imports that break mypy).
 
 ## Next up
 
-Phase 2 — Market Data Service. **Architecture locked 2026-06-06 via `/plan-eng-review`
+Phase 7 — Frontend. **Architecture locked 2026-06-07 via `/plan-eng-review`.** See Phase 7 state entry above and PHASES.md Phase 7 section for full task breakdown.
+
+---
+
+### Older: Phase 2 — Market Data Service decisions (for reference only)
+
+Phase 2 is complete. **Architecture was locked 2026-06-06 via `/plan-eng-review`
 (decisions 15–27 in `PHASES.md`).** Key decisions to know:
 
 - **Redis client**: module-level singleton in `app/core/redis.py`; `get_redis()` DI

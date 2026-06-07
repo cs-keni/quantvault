@@ -3,6 +3,29 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7: /plan-eng-review — architecture locked
+
+No code written. Architecture review for Phase 7 Frontend complete. 10 decisions locked, 12 outside-voice issues caught and resolved, 2 deferred to TODOS.md.
+
+**Key decisions:**
+- D2: Refresh token in localStorage, access token in Zustand memory; silent refresh on init
+- D3: nginx proxy + Vite dev proxy; apiClient.baseURL = `/api/v1` (relative); eliminates CORS
+- D4: Deduplicated refresh lock (`refreshPromise` pattern) — prevents thundering herd on 401 at page load
+- D5: Vitest + @testing-library/react for unit tests
+
+**Outside voice (Codex) caught 3 critical API surface mismatches:**
+- T1: Dashboard "portfolio value" widget has no backend endpoint → redesigned to show risk metrics from existing GET /portfolios/:id/metrics
+- T2: authStore.user had no data source → decided to add GET /auth/me endpoint to backend
+- T3: Return distribution histogram has no data → decided to add `daily_returns: list[float]` to PortfolioMetricsResponse
+
+**Additional fixes from outside voice:** period toggle tokens corrected (1mo/6mo/1y/2y/max, not 1D/1W), polling stop condition broadened to cover STARTED/RETRY Celery states, POST /frontier cache-hit (task_id=null) path added, register flow corrected (register → auto-login → redirect), asset_class dropdown added to portfolio builder.
+
+**Docs updated:** PHASES.md Phase 7 section, CURRENT_TASK.md (full implementation guide), HANDOFF.md (Phase 7 state), AI_CONTEXT.md (frontend architecture section), TODOS.md (TODO-9, TODO-10).
+
+**Artifacts:** `~/.gstack/projects/quantvault/tasks-eng-review-20260607-114107.jsonl` (28 tasks), `~/.gstack/projects/quantvault/keni-main-eng-review-test-plan-20260607-114107.md` (test plan), `gbrain: eng-reviews/phase-7-frontend`.
+
+---
+
 ## 2026-06-07 — Phase 6: /review pass — 3 fixes applied
 
 Commit: 39fb38d

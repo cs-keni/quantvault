@@ -407,31 +407,94 @@
 ---
 
 ## Phase 7 — Frontend
-- [ ] Scaffold React 18 + TypeScript + Tailwind + TanStack Query + Recharts + Zustand
-- [ ] Design tokens applied globally (Inter font, `#6366f1` accent, `#f8fafc` surface, `#10b981` positive)
-- [ ] Auth pages: `/login`, `/register` — clean, minimal, centered card layout
-- [ ] Dashboard: `/dashboard` — portfolio value, 1D/1W/1M/1Y/ALL return toggle, top movers
-- [ ] Portfolio Builder: `/portfolios/new` — ticker search, weight input, live metrics preview (calls ad-hoc metrics endpoint)
-  - Micro-animation: weight bars animate to new values on input
-  - Validation: weight sum indicator (green when = 100%, red when > 100%)
-- [ ] Analysis page: `/portfolios/:id/analysis`
-  - Efficient Frontier scatter plot — current portfolio point, min-variance star, max-Sharpe star, hover shows weights
-  - Risk metrics cards (Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown)
-  - Correlation heatmap
-  - Return distribution histogram with overlay
-- [ ] Monte Carlo page: `/portfolios/:id/simulate`
-  - 20 sampled paths (light gray), P5/P25/P50/P75/P95 bands, initial investment reference line
-  - Loading skeleton while Celery task runs
-- [ ] Backtest page: `/portfolios/:id/backtest`
-  - Date range picker, rebalance frequency selector
-  - Equity curve (portfolio vs. benchmark)
-  - Full tearsheet cards
-- [ ] Portfolio comparison: `/compare`
-- [ ] Loading skeletons on all data-fetching views
-- [ ] Error states with retry buttons
+
+### Architecture Decisions Locked (Phase 7 /plan-eng-review 2026-06-07)
+
+| # | Decision | Rationale |
+|---|---|---|
+| D1 | Full scope — all 8 pages | Login, Register, Dashboard, Portfolio Builder, Analysis, Monte Carlo, Backtest, Compare |
+| D2 | Refresh token in localStorage, access token in Zustand memory | Silent refresh on app init; access token never touches disk |
+| D3 | nginx proxy `/api/` → backend:8000; Vite dev proxy `/api` → localhost:8000 | apiClient baseURL = `/api/v1` (relative); eliminates CORS for Docker deploys |
+| D4 | Deduplicated refresh lock: `let refreshPromise: Promise<string> \| null = null` | All concurrent 401s queue on one promise; prevents thundering herd on token expiry |
+| D5 | Vitest + @testing-library/react + @testing-library/user-event + jsdom | Unit tests: auth store, refresh lock, weight validator, usePolledTask hook |
+| T1 | Dashboard shows risk metrics from GET /portfolios/:id/metrics | Redesigned from spec (no portfolio value endpoint); period toggle: 1mo/6mo/1y/2y/max |
+| T2 | Add GET /auth/me backend endpoint (UserRead) | authStore.user has no data source without it; fetched on app init |
+| T3 | Add `daily_returns: list[float]` to PortfolioMetricsResponse | Return distribution histogram requires it; small change in risk_service.py + schema |
+
+**NOT in scope (Phase 7):**
+- Portfolio value / "top movers" widget — backend has no holdings-price-lookup endpoint
+- 1D/1W period toggles — backend period tokens are 1mo/3mo/6mo/1y/2y/5y/10y/max
+- Cross-tab BroadcastChannel refresh coordination — deferred to TODO-9 (backend has no rotation yet)
+- OpenAPI TypeScript type generation — deferred to TODO-10 (verify Decimal serialization first)
+
+**What already exists (do not recreate):**
+- `frontend/` scaffold: React 18.3.1, react-router-dom 7.17.0, @tanstack/react-query 5.101.0, recharts 3.8.1, zustand 5.0.14, axios 1.17.0, tailwindcss 4.3.0
+- `frontend/src/index.css` — complete Tailwind v4 @theme with all design tokens
+- `frontend/src/App.tsx` — QueryClientProvider + BrowserRouter + Routes stub (1 route)
+- `frontend/src/services/apiClient.ts` — axios stub (needs full rewrite per D2-D4)
+- `frontend/vite.config.ts` — needs dev proxy added
+- `frontend/nginx.conf` — needs `/api/` proxy_pass block added
+- `frontend/src/pages/DashboardPage.tsx` — placeholder only (needs full redesign)
+
+**Missing packages (install before starting):**
+- `react-hook-form` — portfolio builder + auth forms
+- `vitest`, `@testing-library/react`, `@testing-library/user-event`, `jsdom` — D5 testing
+
+### Tasks
+
+**Phase 7a — Foundation**
+- [ ] Install missing packages: `react-hook-form vitest @testing-library/react @testing-library/user-event jsdom`
+- [ ] Add Vite dev proxy: `server.proxy = { '/api': 'http://localhost:8000' }` in `vite.config.ts`
+- [ ] Add nginx API proxy: `location /api/ { proxy_pass http://backend:8000; }` in `nginx.conf`
+- [ ] Rewrite `apiClient.ts`: baseURL `/api/v1`, request interceptor (attach access token), response interceptor (deduplicated refresh lock with `_retry` guard, skip /auth/* paths)
+- [ ] Add GET /auth/me endpoint to backend (returns UserRead; auth required)
+- [ ] Add `daily_returns: list[float]` to PortfolioMetricsResponse schema + risk_service.py population
+- [ ] Zustand authStore: `{ user, accessToken, setTokens, logout, silentRefresh }`
+- [ ] ProtectedRoute wrapper — redirects to /login when no accessToken
+- [ ] Full routing in App.tsx: all 8 pages + ProtectedRoute
+
+**Phase 7b — Auth Pages**
+- [ ] LoginPage (`/login`): centered card, email + password fields, React Hook Form, POST /auth/login, store tokens, redirect /dashboard
+- [ ] RegisterPage (`/register`): same layout, POST /auth/register → auto POST /auth/login → redirect /dashboard
+- [ ] Unit test: authStore silentRefresh + deduplicated refresh lock
+
+**Phase 7c — Dashboard**
+- [ ] DashboardPage (`/dashboard`): portfolio selector, risk metrics cards (Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown)
+- [ ] Period toggle (1mo/6mo/1y/2y/max) — passes period param to GET /portfolios/:id/metrics
+- [ ] Return distribution histogram (uses `daily_returns` from T3)
+- [ ] Staggered card entrance animation; `useRef hasAnimated` guard; stable `portfolio.id` keys
+- [ ] Animated number counters on metric values (count up on load)
+- [ ] Loading skeletons + error states with retry
+
+**Phase 7d — Portfolio Builder**
+- [ ] PortfolioBuilderPage (`/portfolios/new`): ticker input, asset_class dropdown (EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER), target_weight input, current_shares + notes optional
+- [ ] Live weight sum indicator: green when sum = 100%, red when > 100%; animated bar
+- [ ] POST /portfolios (create portfolio + holdings)
+- [ ] Unit test: weight validator (sum=100%, duplicates, empty)
+
+**Phase 7e — Analysis Page**
+- [ ] AnalysisPage (`/portfolios/:id/analysis`): Efficient Frontier scatter with TanStack Query polling
+- [ ] Polling: POST /analysis/frontier → if task_id null (cache hit, status SUCCESS) skip poll; else poll GET /analysis/frontier/:task_id until SUCCESS/FAILURE; stop condition: `['SUCCESS','FAILURE'].includes(status)` (covers STARTED/RETRY states)
+- [ ] Frontier chart: current portfolio point (indigo dot), min-variance star, max-Sharpe star, hover tooltip shows weights
+- [ ] Correlation heatmap (Recharts or CSS grid)
+- [ ] Risk metrics cards (reuse from Dashboard)
+
+**Phase 7f — Monte Carlo Page**
+- [ ] MonteCarloPage (`/portfolios/:id/simulate`): form (years, simulations, initial_investment, annual_contribution), POST /simulation/monte-carlo, poll GET /simulation/:id
+- [ ] Chart: 20 sampled paths (light gray), P5/P25/P50/P75/P95 bands, initial investment reference line
+- [ ] Loading skeleton while task runs; error state on FAILURE
+
+**Phase 7g — Backtest Page**
+- [ ] BacktestPage (`/portfolios/:id/backtest`): form (start_date, end_date, rebalance_frequency, initial_investment, benchmark_ticker), POST /portfolios/:id/backtests, poll GET /portfolios/:id/backtests/:backtest_id
+- [ ] Equity curve chart (portfolio vs. benchmark); EquityCurvePoint: `{ date, portfolio, benchmark }`
+- [ ] Tearsheet cards: CAGR, Sharpe, Sortino, Calmar (may be null → "N/A"), Max Drawdown, Benchmark comparison
+
+**Phase 7h — Compare + Polish**
+- [ ] ComparePage (`/compare`): select 2+ portfolios, side-by-side metrics table
+- [ ] Global: loading skeletons on all data-fetching views, error states with retry
 - [ ] Run `/qa` to verify all features end-to-end before marking Phase 7 complete
 
-**QoL:** Animated number counters on metric cards (count up on load). Staggered entrance animations on dashboard cards.
+**QoL:** Animated number counters on metric cards (count up on load). Staggered entrance animations on dashboard cards. Weight bar micro-animations on portfolio builder input.
 
 ---
 

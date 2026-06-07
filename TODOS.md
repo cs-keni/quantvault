@@ -103,3 +103,29 @@ Items considered during `/plan-eng-review` sessions that were explicitly deferre
 **Context:** Current loop performance is ~15–40ms for maximum parameters (1000 simulations, 30 years), which is well within the 55s Celery soft time limit. Optimization is quality improvement, not a fix. Deferred from Phase 5 `/plan-eng-review` (2026-06-07).
 
 **Depends on:** Phase 5 complete.
+
+---
+
+## TODO-9: Cross-Tab Token Refresh Coordination via BroadcastChannel
+
+**What:** When the user has two browser tabs open, both on an expired token, both simultaneously hit 401 and attempt a refresh. The in-tab deduplicated refresh lock (D4) handles concurrent requests within one tab, but two independent tabs each have their own lock and each call `/auth/refresh`. Depending on the backend's token rotation policy, the second tab's refresh may fail (rotation invalidates first refresh token). Fix: `BroadcastChannel('qv:auth')` — the tab that wins the race posts `{ type: 'token_refreshed', accessToken }` to the channel; losing tabs receive it and update their in-memory access token without re-hitting the backend.
+
+**Why:** Refresh token rotation (future security hardening) makes dual-tab refresh non-idempotent. One tab will fail silently and log the user out unexpectedly.
+
+**Scope:** ~40 lines in `src/store/authStore.ts`: subscribe to BroadcastChannel on mount, broadcast on successful refresh. Needs `TODOS.md` reminder to add rotation to backend when this is implemented.
+
+**Deferred:** Phase 7 /plan-eng-review (2026-06-07). Backend currently does NOT rotate refresh tokens — risk is zero today. Implement when/if rotation is added.
+
+---
+
+## TODO-10: OpenAPI TypeScript Type Generation
+
+**What:** Use `openapi-typescript` to generate TypeScript types from FastAPI's `/api/v1/openapi.json`. Run as a build step: `npx openapi-typescript /api/v1/openapi.json -o src/types/api.d.ts`. Replaces hand-written types in `src/types/`.
+
+**Why:** FastAPI's Pydantic `Decimal` fields (`HoldingOut.target_weight`, `BacktestRequest.initial_investment`) may serialize to JSON as strings (e.g. `"0.6"` not `0.6`) depending on serialization config. Hand-written types that declare these as `number` will TypeScript-pass but runtime-fail when the actual value is `"0.6"`. OpenAPI generation catches this automatically.
+
+**Scope:** Add `openapi-typescript` as devDependency. Add npm script `"gen:types": "openapi-typescript ..."`. Delete `src/types/` hand-written files.
+
+**Deferred:** Phase 7 /plan-eng-review (2026-06-07). Verify Decimal serialization behavior during Phase 7 implementation — FastAPI v0.100+ with Pydantic v2 serializes `Decimal` as `float` by default when using `model_dump(mode='json')`. If fields are numbers in practice, hand-written types are fine. If strings, switch to openapi-typescript as the fix.
+
+**Depends on:** Phase 7 scaffolded, backend running locally so openapi.json is accessible.
