@@ -148,11 +148,13 @@ for the full list with rationale. The ones that change *how code is written*:
 
 ## Frontend architecture (Phase 7 — locked 2026-06-07 via /plan-eng-review)
 
-Phase 7a foundation and Phase 7b auth pages are implemented. The frontend now
-uses Vite/nginx `/api` proxies with `apiClient.baseURL = "/api/v1"`, a Zustand
-auth store with deduplicated `silentRefresh()`, protected route bootstrapping,
-React Hook Form login/register pages, and the backend now exposes
-`GET /auth/me` plus `PortfolioMetricsResponse.daily_returns`.
+Phase 7a foundation, Phase 7b auth pages, and Phase 7c dashboard are
+implemented. The frontend now uses Vite/nginx `/api` proxies with
+`apiClient.baseURL = "/api/v1"`, a Zustand auth store with deduplicated
+`silentRefresh()`, protected route bootstrapping, React Hook Form login/register
+pages, and a dashboard that reads `GET /portfolios` plus
+`GET /analysis/portfolios/:id/metrics`. The backend now exposes `GET /auth/me`
+plus `PortfolioMetricsResponse.daily_returns`.
 
 **Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
 
@@ -178,6 +180,11 @@ React Hook Form login/register pages, and the backend now exposes
 **Testing:** Vitest + @testing-library/react + @testing-library/user-event + jsdom are installed for Phase 7 frontend unit tests.
 
 **Dashboard scope (redesigned from original spec):** Shows risk metrics from GET /portfolios/:id/metrics. No "portfolio value" widget (no endpoint). No "top movers" (no endpoint). Period toggle controls metrics recalc window.
+
+**Build note:** After Phase 7c, `npm run build` passes but Vite warns the main
+bundle is >500 kB after Recharts entered the dashboard path. This is not a
+Phase 7 blocker; consider route-level lazy loading in polish if bundle size
+matters.
 
 **Phase 7d gotcha:** The planning docs' future dropdown list includes
 `BOND/CRYPTO/OTHER`, but the actual backend `AssetClass` enum currently only

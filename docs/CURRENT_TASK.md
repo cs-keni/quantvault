@@ -1,8 +1,8 @@
 # Current Task
 
-**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7b complete)
+**Phase 7 — Frontend** 🚧 in progress (architecture locked 2026-06-07, Phase 7c complete)
 
-`/plan-eng-review` complete. All decisions locked. Phase 7c Dashboard is next.
+`/plan-eng-review` complete. All decisions locked. Phase 7d Portfolio Builder is next.
 
 ---
 
@@ -120,15 +120,31 @@ Verification:
 
 ---
 
-## Phase 7c — Dashboard (`/dashboard`)
+## Phase 7c — Dashboard (`/dashboard`) ✅ complete
 
-- Portfolio selector dropdown (GET /portfolios)
-- Period toggle: 1mo / 6mo / 1y / 2y / max (maps to backend's period enum; NOT 1D/1W/1M)
-- Risk metrics cards from GET /portfolios/:id/metrics: Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown
-- Return distribution histogram (uses `daily_returns` from PortfolioMetricsResponse — requires Step 6)
-- Staggered card entrance animations; `useRef hasAnimated` guard to prevent re-animation on TanStack Query cache refetch; stable `portfolio.id` keys (not array index)
-- Animated number counters on metric values (count up on load)
-- Loading skeletons + error state with retry button
+Completed 2026-06-07.
+
+- Replaced the scaffold dashboard with an authenticated risk dashboard.
+- Portfolio selector loads `GET /portfolios`; default selection prefers `user.default_portfolio_id`, then first portfolio.
+- Period toggle uses only locked tokens: `1mo / 6mo / 1y / 2y / max`.
+- Metrics query calls `GET /analysis/portfolios/:id/metrics`.
+- Risk cards show Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown.
+- Return distribution histogram uses `daily_returns` from `PortfolioMetricsResponse`.
+- Added animated counters and staggered card entrance with a `useRef` guard so TanStack Query refetches do not reanimate cards.
+- Added loading skeletons, empty portfolio state, error states with retry, and sign-out.
+
+Verification:
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm run build` — passed; Vite warns the dashboard bundle is >500 kB after adding Recharts.
+
+- [x] Portfolio selector dropdown (GET /portfolios)
+- [x] Period toggle: 1mo / 6mo / 1y / 2y / max (maps to backend's period enum; NOT 1D/1W/1M)
+- [x] Risk metrics cards from GET /portfolios/:id/metrics: Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown
+- [x] Return distribution histogram (uses `daily_returns` from PortfolioMetricsResponse — requires Step 6)
+- [x] Staggered card entrance animations; `useRef hasAnimated` guard to prevent re-animation on TanStack Query cache refetch; stable `portfolio.id` keys (not array index)
+- [x] Animated number counters on metric values (count up on load)
+- [x] Loading skeletons + error state with retry button
 
 ---
 

@@ -459,12 +459,12 @@
 - [x] Unit test: authStore silentRefresh + deduplicated refresh lock
 
 **Phase 7c — Dashboard**
-- [ ] DashboardPage (`/dashboard`): portfolio selector, risk metrics cards (Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown)
-- [ ] Period toggle (1mo/6mo/1y/2y/max) — passes period param to GET /portfolios/:id/metrics
-- [ ] Return distribution histogram (uses `daily_returns` from T3)
-- [ ] Staggered card entrance animation; `useRef hasAnimated` guard; stable `portfolio.id` keys
-- [ ] Animated number counters on metric values (count up on load)
-- [ ] Loading skeletons + error states with retry
+- [x] DashboardPage (`/dashboard`): portfolio selector, risk metrics cards (Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown)
+- [x] Period toggle (1mo/6mo/1y/2y/max) — passes period param to GET /portfolios/:id/metrics
+- [x] Return distribution histogram (uses `daily_returns` from T3)
+- [x] Staggered card entrance animation; `useRef hasAnimated` guard; stable `portfolio.id` keys
+- [x] Animated number counters on metric values (count up on load)
+- [x] Loading skeletons + error states with retry
 
 **Phase 7d — Portfolio Builder**
 - [ ] PortfolioBuilderPage (`/portfolios/new`): ticker input, asset_class dropdown (EQUITY/BOND/REAL_ESTATE/COMMODITY/CRYPTO/CASH/OTHER), target_weight input, current_shares + notes optional

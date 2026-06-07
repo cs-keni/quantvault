@@ -3,6 +3,27 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 7c: Dashboard implemented
+
+Implemented the locked Phase 7c dashboard.
+
+**Changed:**
+- Replaced the scaffold dashboard with an authenticated dashboard.
+- Added portfolio selector from `GET /portfolios`; default selection uses `user.default_portfolio_id` when available, otherwise the first portfolio.
+- Added locked period toggle tokens only: `1mo / 6mo / 1y / 2y / max`.
+- Added metrics query against `GET /analysis/portfolios/:id/metrics`.
+- Added cards for Sharpe, Sortino, VaR, CVaR, Beta, and Max Drawdown.
+- Added a Recharts return distribution histogram using `daily_returns`.
+- Added loading skeletons, empty portfolio state, retryable error states, sign-out, animated counters, and a `useRef` guard preventing metric card reanimation on query refetch.
+- Added frontend API types for portfolio list and metrics responses.
+
+**Checks:**
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm run build` — passed
+
+**Build note:** Vite warns the main JS chunk is >500 kB after Recharts was added to the dashboard bundle. This is non-blocking for Phase 7; route-level lazy loading can address it during polish if needed.
+
 ## 2026-06-07 — Phase 7b: Auth pages implemented
 
 Implemented the locked Phase 7b auth pages and frontend auth tests.

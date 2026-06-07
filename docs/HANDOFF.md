@@ -5,9 +5,9 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
-## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7b complete)
+## State as of 2026-06-07 (Phase 7 — Frontend, Phase 7c complete)
 
-`/plan-eng-review` complete for Phase 7. Phase 7a foundation and Phase 7b auth pages are implemented and verified; Phase 7c Dashboard is next.
+`/plan-eng-review` complete for Phase 7. Phase 7a foundation, Phase 7b auth pages, and Phase 7c dashboard are implemented and verified; Phase 7d Portfolio Builder is next.
 
 **Implemented in Phase 7a:**
 - `frontend/package.json` / lockfile — installed `react-hook-form`, `vitest`, `@testing-library/react`, `@testing-library/user-event`, and `jsdom`.
@@ -40,12 +40,22 @@ change — not for routine task completion (that's `CURRENT_TASK.md` /
 - `cd frontend && npm run build` — clean
 - `cd frontend && npm run lint` — clean
 
-**Next implementation slice: Phase 7c Dashboard**
-- Portfolio selector from `GET /portfolios`.
-- Period toggle tokens only: `1mo / 6mo / 1y / 2y / max`.
-- Metrics cards from `GET /analysis/portfolios/:id/metrics`.
-- Return distribution histogram from `daily_returns`.
-- Skeleton/error/retry states plus the locked animation details.
+**Implemented in Phase 7c:**
+- `frontend/src/pages/DashboardPage.tsx` — authenticated dashboard using `GET /portfolios` and `GET /analysis/portfolios/:id/metrics`.
+- Period controls are limited to `1mo / 6mo / 1y / 2y / max`.
+- Risk cards: Sharpe, Sortino, VaR, CVaR, Beta, Max Drawdown.
+- Return distribution histogram uses `daily_returns` via Recharts.
+- Loading skeletons, empty state, retryable error states, sign-out, animated counters, and staggered card entrance with a `useRef` reanimation guard.
+- `frontend/src/types/api.ts` — added portfolio/metrics response types.
+
+**Verification after Phase 7c:**
+- `cd frontend && npm test` — 4 passed
+- `cd frontend && npm run lint` — clean
+- `cd frontend && npm run build` — clean; Vite emits a non-blocking >500 kB chunk warning after Recharts enters the main bundle.
+
+**Next implementation slice: Phase 7d Portfolio Builder**
+- Before wiring the asset-class dropdown, resolve the enum mismatch noted below.
+- Implement ticker rows, asset class dropdown, target weight/current shares/notes, live weight-sum bar, create portfolio + holdings, and weight validator tests.
 
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)

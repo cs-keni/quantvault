@@ -12,3 +12,36 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: string;
 }
+
+export interface PortfolioListItem {
+  id: string;
+  name: string;
+  benchmark_ticker: string;
+  holding_count: number;
+}
+
+export interface CorrelationMatrix {
+  tickers: string[];
+  matrix: number[][];
+}
+
+export interface PortfolioMetricsResponse {
+  annual_return: number;
+  annual_volatility: number;
+  sharpe_ratio: number;
+  var: number;
+  cvar: number;
+  confidence: number;
+  max_drawdown: number;
+  peak_date: string | number;
+  trough_date: string | number;
+  sortino_ratio: number;
+  daily_returns: number[];
+  beta: number | null;
+  beta_benchmark: string | null;
+  correlation: CorrelationMatrix;
+  risk_free_rate: number;
+  period: string;
+  n_trading_days: number;
+  dropped_tickers: string[];
+}
