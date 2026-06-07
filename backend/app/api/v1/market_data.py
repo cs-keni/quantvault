@@ -51,7 +51,7 @@ async def get_ticker_history(
 
     upper = ticker.upper()
     try:
-        df, dropped = await service.get_historical_returns([upper], period)
+        df, _ = await service.get_historical_returns([upper], period)
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 

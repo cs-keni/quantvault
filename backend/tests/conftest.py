@@ -5,7 +5,12 @@ import pytest
 from app.core.database import Base, get_db
 from app.main import create_app
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 # Tests run against a dedicated database so they never touch dev/prod data.
 # Override via TEST_DATABASE_URL in CI; defaults to the dev Postgres host with
@@ -35,7 +40,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 
 
 @pytest.fixture(scope="session")
-async def engine() -> AsyncGenerator:
+async def engine() -> AsyncGenerator[AsyncEngine, None]:
     """Session-scoped engine; creates all tables once and drops them on teardown."""
     test_engine = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
     async with test_engine.begin() as conn:
@@ -47,7 +52,7 @@ async def engine() -> AsyncGenerator:
 
 
 @pytest.fixture
-async def db_session(engine) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Function-scoped session wrapped in a transaction that's rolled back after each test.
 
     This keeps tests isolated from each other without paying for a schema

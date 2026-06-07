@@ -1,0 +1,129 @@
+import uuid
+from decimal import Decimal
+from typing import Annotated
+
+from pydantic import BaseModel, Field
+
+from app.models.holding import AssetClass
+
+# ────────────────────────────────────────────────────────────────
+# Portfolio CRUD schemas
+# ────────────────────────────────────────────────────────────────
+
+
+class PortfolioCreate(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=255)]
+    description: Annotated[str | None, Field(max_length=2000)] = None
+    benchmark_ticker: Annotated[str, Field(min_length=1, max_length=16)] = "SPY"
+
+
+class PortfolioUpdate(BaseModel):
+    name: Annotated[str | None, Field(min_length=1, max_length=255)] = None
+    description: Annotated[str | None, Field(max_length=2000)] = None
+    benchmark_ticker: Annotated[str | None, Field(min_length=1, max_length=16)] = None
+
+
+class HoldingOut(BaseModel):
+    id: uuid.UUID
+    ticker: str
+    asset_name: str
+    asset_class: AssetClass
+    target_weight: Decimal
+    current_shares: Decimal | None = None
+    notes: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PortfolioOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    benchmark_ticker: str
+    holdings: list[HoldingOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class PortfolioListItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    benchmark_ticker: str
+    holding_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+# ────────────────────────────────────────────────────────────────
+# Holding management schemas
+# ────────────────────────────────────────────────────────────────
+
+
+class HoldingCreate(BaseModel):
+    ticker: Annotated[str, Field(min_length=1, max_length=16)]
+    asset_name: Annotated[str, Field(min_length=1, max_length=255)]
+    asset_class: AssetClass
+    target_weight: Annotated[Decimal, Field(gt=0, le=1)]
+    current_shares: Annotated[Decimal | None, Field(gt=0)] = None
+    notes: Annotated[str | None, Field(max_length=2000)] = None
+
+
+class HoldingUpdate(BaseModel):
+    asset_name: Annotated[str | None, Field(min_length=1, max_length=255)] = None
+    asset_class: AssetClass | None = None
+    target_weight: Annotated[Decimal | None, Field(gt=0, le=1)] = None
+    current_shares: Annotated[Decimal | None, Field(gt=0)] = None
+    notes: Annotated[str | None, Field(max_length=2000)] = None
+
+
+# ────────────────────────────────────────────────────────────────
+# Analysis / metrics schemas
+# ────────────────────────────────────────────────────────────────
+
+
+class AdHocHolding(BaseModel):
+    """A single holding for ad-hoc metrics without a saved portfolio."""
+
+    ticker: Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9.^=\-]{1,20}$")]
+    weight: Annotated[float, Field(gt=0, le=1)]
+
+
+class MetricsRequest(BaseModel):
+    """Input for POST /api/v1/analysis/metrics (ad-hoc portfolio, no DB save)."""
+
+    holdings: Annotated[list[AdHocHolding], Field(min_length=1, max_length=50)]
+    period: str = "1y"
+    confidence: Annotated[float, Field(gt=0, lt=1)] = 0.95
+    benchmark_ticker: Annotated[str, Field(min_length=1, max_length=20)] = "SPY"
+
+
+class CorrelationMatrix(BaseModel):
+    tickers: list[str]
+    matrix: list[list[float]]
+
+
+class PortfolioMetricsResponse(BaseModel):
+    # Basic return / risk
+    annual_return: float
+    annual_volatility: float
+    sharpe_ratio: float
+    # VaR / CVaR (signed fractions; negative = loss)
+    var: float
+    cvar: float
+    confidence: float
+    # Drawdown
+    max_drawdown: float
+    peak_date: str | int
+    trough_date: str | int
+    # Sortino
+    sortino_ratio: float
+    # Beta
+    beta: float | None = None
+    beta_benchmark: str | None = None
+    # Diversification
+    correlation: CorrelationMatrix
+    # Metadata
+    risk_free_rate: float
+    period: str
+    n_trading_days: int
+    dropped_tickers: list[str]

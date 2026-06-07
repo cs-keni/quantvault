@@ -35,7 +35,7 @@ async def fake_redis() -> AsyncGenerator[fakeredis.aioredis.FakeRedis, None]:
 
 @pytest.fixture
 def market_service(fake_redis: fakeredis.aioredis.FakeRedis) -> MarketDataService:
-    return MarketDataService(fake_redis)  # type: ignore[arg-type]
+    return MarketDataService(fake_redis)
 
 
 @pytest.fixture
@@ -170,7 +170,7 @@ async def test_redis_failure_falls_through(
     with patch.object(
         MarketDataService, "_fetch_and_process_returns", return_value=(df, [])
     ) as mock_fn:
-        result_df, dropped = await market_service.get_historical_returns(tickers, "1y")
+        result_df, _ = await market_service.get_historical_returns(tickers, "1y")
 
     mock_fn.assert_called_once()
     assert not result_df.empty
@@ -186,7 +186,7 @@ async def test_corrupt_cache_falls_through(
     with patch.object(
         MarketDataService, "_fetch_and_process_returns", return_value=(df, [])
     ) as mock_fn:
-        result_df, dropped = await market_service.get_historical_returns(["SPY"], "1y")
+        result_df, _ = await market_service.get_historical_returns(["SPY"], "1y")
 
     mock_fn.assert_called_once()
     assert not result_df.empty
@@ -228,7 +228,7 @@ async def test_partial_result_not_cached(
 
 async def test_data_quality_drops_large_gap() -> None:
     """Ticker with > 5 consecutive NaN days must be dropped and listed."""
-    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    svc = MarketDataService(AsyncMock())
     dates = pd.date_range("2024-01-01", periods=12, freq="B")
     returns = pd.DataFrame(
         {
@@ -258,7 +258,7 @@ async def test_data_quality_drops_large_gap() -> None:
 
 async def test_data_quality_ffills_small_gap() -> None:
     """Ticker with ≤ 5 consecutive NaN days must be forward-filled and kept."""
-    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    svc = MarketDataService(AsyncMock())
     dates = pd.date_range("2024-01-01", periods=8, freq="B")
     returns = pd.DataFrame(
         {"SPY": [0.01, None, None, None, 0.02, 0.01, 0.03, 0.01]},
@@ -427,7 +427,7 @@ async def test_data_quality_boundary_exactly_max_gap() -> None:
 
     Fence-post: 5 is the threshold (≤5 kept, >5 dropped). Exactly 5 must survive.
     """
-    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    svc = MarketDataService(AsyncMock())
     dates = pd.date_range("2024-01-01", periods=9, freq="B")
     returns = pd.DataFrame(
         {"SPY": [0.01, None, None, None, None, None, 0.02, 0.01, 0.03]},
@@ -440,13 +440,13 @@ async def test_data_quality_boundary_exactly_max_gap() -> None:
 
 async def test_data_quality_drops_exactly_max_gap_plus_one() -> None:
     """Ticker with exactly _MAX_GAP+1=6 consecutive NaN days must be dropped."""
-    svc = MarketDataService(AsyncMock())  # type: ignore[arg-type]
+    svc = MarketDataService(AsyncMock())
     dates = pd.date_range("2024-01-01", periods=10, freq="B")
     returns = pd.DataFrame(
         {"SPY": [0.01, None, None, None, None, None, None, 0.02, 0.01, 0.03]},
         index=dates,
     )
-    result, dropped = svc._apply_data_quality(returns, ["SPY"])
+    _, dropped = svc._apply_data_quality(returns, ["SPY"])
     assert "SPY" in dropped
 
 

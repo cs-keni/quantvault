@@ -1,28 +1,14 @@
 # Current Task
 
-**Phase 2 — Market Data Service** ✅ complete, reviewed, and verified
+**Phase 3 — Portfolio Service and Risk Metrics** ✅ complete
 
-Implementation + `/review` pass complete. 48 tests passing, ruff/mypy clean.
+Implementation complete. 89 tests passing (2 skipped — integration-only), ruff clean, mypy 0 errors (40 files).
 
-Review findings and fixes: see `ENGINEERING_LOG.md` 2026-06-06 (Phase 2 /review pass).
+All financial functions verified against hand-derivable ground-truth values in `tests/fixtures/known_values.py`.
 
-Key decisions added during review (decisions 28–30, informal):
-- Added `_FETCH_TIMEOUT`/`_VALIDATE_TIMEOUT`/`_SEARCH_MAX_RESULTS` as named class constants
-- Added `isinstance(pd.DataFrame)` guards in `_fetch_rfr` and `_fetch_quote` for yfinance 0.2.51 MultiIndex columns
-- Added `_TickerStr` / `_TickerPath` character whitelist (user-approved) preventing Redis key injection
+Next step: run `/review` (financial math phases require a review pass before marking complete per PHASES.md).
 
 **T6 (^TNX live verification)** — still open, network-blocked. Formula confirmed as `/ 100` via fallback cross-check. Verify when Yahoo Finance is reachable from WSL2.
-
-## Next
-
-**Phase 3 — Portfolio Service and Risk Metrics**
-
-Before writing any financial functions:
-1. Run `/plan-eng-review` if anything is unclear
-2. Lock known test values in `tests/fixtures/known_values.py`
-3. Hand-verify with pencil-and-paper before trusting numpy
-
-Then implement in order per PHASES.md Phase 3 checklist.
 
 ---
 

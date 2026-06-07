@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.portfolio import Portfolio
 
 
-class AssetClass(str, enum.Enum):
+class AssetClass(enum.StrEnum):
     """Broad category used to group holdings for diversification / allocation reporting."""
 
     EQUITY = "EQUITY"

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from app.models.portfolio import Portfolio
 
 
-class RebalanceFrequency(str, enum.Enum):
+class RebalanceFrequency(enum.StrEnum):
     """How often a backtest rebalances holdings back to their target weights."""
 
     MONTHLY = "MONTHLY"

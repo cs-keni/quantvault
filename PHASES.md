@@ -119,25 +119,27 @@
 
 ---
 
-## Phase 3 — Portfolio Service and Risk Metrics
+## Phase 3 — Portfolio Service and Risk Metrics ✅ complete (2026-06-06)
 > **Lock known test values in `tests/fixtures/known_values.py` before implementing any financial functions.**
 > Use tiny hand-computable matrices: 2-asset portfolio with known returns, verify with pencil-and-paper.
 
-- [ ] Write `tests/fixtures/known_values.py` with deterministic inputs and expected outputs for every metric
-- [ ] Implement Portfolio CRUD endpoints
-- [ ] Implement Holding management (add, update, delete, weight validation — must sum to 1.0 ± 0.001)
-- [ ] Implement `calculate_portfolio_metrics()` — annualized return, volatility, Sharpe
-- [ ] Implement `calculate_var_cvar()`:
+- [x] Write `tests/fixtures/known_values.py` with deterministic inputs and expected outputs for every metric
+- [x] Implement Portfolio CRUD endpoints
+- [x] Implement Holding management (add, update, delete, weight validation — must sum to 1.0 ± 0.001)
+- [x] Implement `calculate_portfolio_metrics()` — annualized return, volatility, Sharpe
+- [x] Implement `calculate_var_cvar()`:
   - Historical simulation method (not parametric)
   - **Annual VaR = 252-day rolling window result, NOT `daily_var * sqrt(252)`**
   - **CVaR guard: `var_index = max(int((1 - confidence_level) * len(sorted_returns)), 1)`**
-- [ ] Implement `calculate_max_drawdown()` — peak-to-trough, returns date + series
-- [ ] Implement `_compute_beta()`, `calculate_beta_from_ticker()`, `calculate_beta_from_returns()`
-- [ ] Implement `calculate_sortino()` — downside deviation only in denominator
-- [ ] Implement correlation matrix calculation
+- [x] Implement `calculate_max_drawdown()` — peak-to-trough, returns date + series
+- [x] Implement `_compute_beta()`, `calculate_beta_from_ticker()`, `calculate_beta_from_returns()`
+- [x] Implement `calculate_sortino()` — downside deviation only in denominator
+- [x] Implement correlation matrix calculation
 - [ ] Run `/review` before marking Phase 3 complete — financial math must be correct
 
-**QoL:** `POST /api/v1/analysis/metrics` accepts an ad-hoc portfolio (no DB save required) for the live Portfolio Builder preview.
+**QoL:** `POST /api/v1/analysis/metrics` accepts an ad-hoc portfolio (no DB save required) for the live Portfolio Builder preview. ✅ implemented.
+
+**Gate results (pre-review):** 89 passed, 2 skipped, ruff clean, mypy 0 errors (40 files).
 
 ---
 

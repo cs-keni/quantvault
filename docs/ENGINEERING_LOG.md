@@ -3,6 +3,43 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 3: Portfolio Service and Risk Metrics
+
+Commit: (pending)
+
+Implemented Phase 3 in full: ground-truth fixtures, pure-math risk service, portfolio CRUD, and
+metrics endpoints. All 89 tests passing, ruff clean, mypy 0 errors (40 source files).
+
+**New files:**
+- `backend/tests/fixtures/__init__.py` + `known_values.py` — deterministic expected values with hand-derivable formulas; can be printed via `python -m tests.fixtures.known_values`
+- `backend/app/services/risk_service.py` — all pure math, no I/O: `calculate_portfolio_metrics`, `calculate_var_cvar`, `calculate_max_drawdown`, `calculate_sortino`, `_compute_beta`, `calculate_beta_from_returns`, `calculate_correlation_matrix`
+- `backend/app/schemas/portfolio.py` — Pydantic schemas for portfolio CRUD + metrics endpoints
+- `backend/app/api/v1/portfolios.py` — full portfolio + holding CRUD (auth-required)
+- `backend/app/api/v1/analysis.py` — `POST /api/v1/analysis/metrics` (ad-hoc) + `GET /api/v1/analysis/portfolios/{id}/metrics` (saved)
+- `backend/tests/test_risk_metrics.py` — 27 tests covering all 7 functions + edge cases
+- `backend/tests/test_portfolios.py` — 14 integration tests for portfolio/holding CRUD
+
+**Updated files:**
+- `backend/app/services/portfolio_service.py` — added full CRUD + `_validate_weights()` + `calculate_beta_from_ticker()` orchestration
+- `backend/app/main.py` — registered `portfolios` and `analysis` routers
+
+**Key implementation decisions:**
+- Annual return: `(1 + mean_daily)^252 - 1` (geometric compounding, not linear)
+- Annual vol: `std_daily(ddof=1) * sqrt(252)`
+- Sharpe guard: `if annual_vol > 1e-8` — prevents ÷0 on float64 constant series (sample std is O(1e-19), not exactly 0)
+- VaR: 252-day rolling window (NOT `daily_var * sqrt(252)`); `var_index = max(int((1-confidence)*N), 1)` prevents empty-slice NaN
+- Sortino: Sortino & van der Meer 1991 formula — `sqrt(mean(min(r,0)^2)) * sqrt(252)`, divides by N (ALL observations)
+- Beta: `cov(port,bench,ddof=1)[0,1] / cov[1,1]`; returns 0.0 if benchmark variance is zero
+- Weight validation deferred to metrics time (not each CRUD write) to support one-at-a-time Portfolio Builder UX
+- After `db.commit()` in routes, reload ORM objects via `selectinload` query to avoid MissingGreenlet on async lazy load
+- Beta computation is best-effort in metrics endpoint — logs warning, returns `beta=None` rather than 500
+
+**Ruff/mypy fixes applied during quality gate:**
+- RUF002/RUF003: replaced Unicode math symbols (`−`, `×`) with ASCII in docstrings
+- RUF059: renamed unused unpacked variables to `_` in market_data route + tests
+- UP042: `str, enum.Enum` → `enum.StrEnum` for `AssetClass` and `RebalanceFrequency` (Python 3.11+, no migration needed)
+- 14 mypy errors fixed: unused `# type: ignore` comments, missing type params in conftest/fixtures, `np.full` vs `np.ones()*scalar` type inference, type-narrowing via `isinstance` in `calculate_max_drawdown`
+
 ## 2026-06-06 — Phase 2: /review pass fixes
 
 Commit: c2c9c51
