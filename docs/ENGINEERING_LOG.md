@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-06 — Phase 3: /review findings and fixes
 
-Commit: TBD (this entry)
+Commit: 9f5ebbb
 
 Manual checklist pass (direct-to-main workflow) against the Phase 3 diff. Six bugs fixed across three categories: correctness, security, and data safety.
 
