@@ -3,6 +3,24 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 6: /review pass — 3 fixes applied
+
+Commit: (pending)
+
+Ran mandatory financial-math `/review` against Phase 6. All locked math decisions verified correct (CAGR formula, buy-and-hold, Calmar=None, yfinance end-exclusivity, symmetric data availability, Jensen alpha). Three fixes applied from adversarial review findings:
+
+1. **Status guard in `_write_result_to_db`** (`backtest_service.py:219-226`) — added `if backtest.status != BacktestStatus.PENDING: return` before writing. Prevents a duplicate Celery task execution (broker message duplication) from overwriting a correctly settled result, and also prevents `SoftTimeLimitExceeded` from downgrading a SUCCESS row to FAILURE when the signal fires after the DB commit.
+
+2. **Single-commit task dispatch** (`backtest.py:176-212`) — pre-generates `task_id = str(uuid.uuid4())` before creating `BacktestResult`, stores it in the row, commits once, then dispatches via `apply_async(args=..., task_id=task_id)`. Eliminates the two-commit window where a failed second commit left `task_id=NULL` and a running Celery task orphaned from the client.
+
+3. **isfinite guard** (`backtest_service.py:157-161`) — raises descriptive `ValueError` if `portfolio_equity` contains `inf`/`nan` before building daily returns. Without this, extreme theoretical returns or total-wipeout positions caused silent `FAILURE` via cryptic JSONB write rejection.
+
+Deferred (TODOS added): `benchmark_ticker` not stored in `BacktestResult` (audit gap), migration downgrade unsafe for PENDING rows.
+
+Gates: 7 deterministic math tests + ruff clean + mypy clean.
+
+---
+
 ## 2026-06-07 — Phase 6: Backtesting Engine implementation
 
 Commit: bf57e41

@@ -396,7 +396,7 @@
     - GET list wrong user → empty list (not another user's backtests)
   - Integration test (INTEGRATION_TESTS=1):
     - SPY-only 2018-01-01 to 2022-12-31, NEVER rebalance → CAGR cross-checked against `calculate_portfolio_metrics()` (not used as CAGR source — just a sanity upper/lower bound)
-- [ ] Run `/review` before marking Phase 6 complete — **non-negotiable financial math gate**
+- [x] Run `/review` before marking Phase 6 complete — **non-negotiable financial math gate** (passed 2026-06-07; 3 fixes applied — see ENGINEERING_LOG.md)
 
 **NOT in scope (Phase 6):** Transaction costs, slippage, tax-loss harvesting, portfolio comparison endpoint, backtest caching in Redis (results are persisted in PostgreSQL), fractional shares math, intraday rebalance.
 

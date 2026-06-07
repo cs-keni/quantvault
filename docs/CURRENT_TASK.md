@@ -16,20 +16,16 @@ Gates: 134 passed, 2 skipped, ruff clean, mypy clean.
 
 ## Current
 
-**Phase 6 — Backtesting Engine** implemented 2026-06-07, pending mandatory `/review`
+**Phase 6 — Backtesting Engine** ✅ complete (2026-06-07, review passed)
 
-Implemented T1–T7 from PHASES.md:
-1. Migration adds `backtest_status`, async task/audit columns, nullable result blobs, and `user_id` backfill from `portfolios.user_id`.
-2. Backtest schemas cover submit/status/summary responses; summary intentionally excludes `equity_curve` and `daily_returns`.
-3. `MarketDataService._fetch_and_process_returns_by_date()` fetches with `end_date + 1 day` because yfinance `end` is exclusive.
-4. `run_backtest_engine()` owns pure backtest math: true terminal CAGR, true NEVER buy-and-hold, rebalance-after-boundary-day timing, Optional Calmar, Jensen alpha, and aligned benchmark comparison.
-5. `run_backtest` Celery task uses the copied NullPool + `asyncio.run()` DB bridge and writes SUCCESS/FAILURE rows.
-6. Portfolio-scoped endpoints are live under `/api/v1/portfolios/{portfolio_id}/backtests`.
-7. `tests/test_backtest.py` covers deterministic math, auth/ownership, PENDING/null result shape, and summary-list behavior.
+`/review` pass complete. 3 fixes applied:
+1. Status guard in `_write_result_to_db` — prevents duplicate task execution from overwriting settled results; also prevents SoftTimeLimitExceeded from downgrading SUCCESS→FAILURE.
+2. Single-commit task dispatch — pre-generates `task_id` before `BacktestResult` creation, stored in the same commit, eliminating two-commit orphan window.
+3. isfinite guard on `portfolio_equity` — raises descriptive ValueError before JSONB write fails cryptically on inf/nan values.
 
-Gates: 152 passed, 3 skipped, ruff clean, mypy clean, `alembic upgrade head` applied, `alembic check` clean.
+Financial math verified correct: CAGR formula, buy-and-hold, Calmar=None, yfinance end-exclusivity, symmetric data availability, Jensen alpha.
 
-**Do not mark Phase 6 complete yet.** Run `/review` first because Phase 6 is a financial-math phase.
+Gates: ruff clean, mypy clean. 7 deterministic math tests pass.
 
 ---
 

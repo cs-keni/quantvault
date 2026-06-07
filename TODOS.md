@@ -4,6 +4,30 @@ Items considered during `/plan-eng-review` sessions that were explicitly deferre
 
 ---
 
+## TODO-7: Store `benchmark_ticker` in `BacktestResult`
+
+**What:** Add `benchmark_ticker: Mapped[str] = mapped_column(String(16), nullable=False)` to `BacktestResult`, backfill existing rows from `portfolios.benchmark_ticker` via migration, and expose it in `BacktestStatusResponse`.
+
+**Why:** `BacktestResult` currently stores `tearsheet.benchmark_cagr` and `tearsheet.benchmark_final_value` but not which ticker produced them. If `portfolio.benchmark_ticker` is changed after a backtest runs, the stored benchmark metrics become ambiguous — no way to know what they represent.
+
+**Scope:** New Alembic migration, ORM model column, `run_backtest` params dict inclusion, `BacktestStatusResponse` schema field. Small — ~30 lines.
+
+**Deferred:** Phase 6 /review pass (2026-06-07). Math correctness is not affected; this is a data completeness / audit trail concern.
+
+---
+
+## TODO-8: Migration Downgrade Safety for PENDING Rows
+
+**What:** In `20260607_2330_7d8e9f012345_add_backtest_status_columns.py` `downgrade()`, `op.alter_column("backtest_results", "equity_curve", nullable=False)` will raise an `IntegrityError` if any rows have NULL `equity_curve` (all PENDING rows do).
+
+**Why:** The downgrade path is not safe on a live DB with in-flight backtests.
+
+**Fix:** Add a `DELETE FROM backtest_results WHERE status = 'PENDING'` before the nullable→NOT NULL `alter_column` calls in `downgrade()`, or add a comment documenting the limitation.
+
+**Deferred:** Phase 6 /review pass (2026-06-07). No production traffic on this project; downgrade is unlikely to be executed. Acceptable for MVP.
+
+---
+
 ## TODO-1: Cache Stampede Protection for Efficient Frontier
 
 **What:** Add a Redis SETNX distributed lock (keyed on the frontier cache key) in `POST /analysis/frontier` to prevent two simultaneous identical requests from dispatching duplicate Celery tasks.

@@ -177,6 +177,10 @@ async def submit_backtest(
         payload.strategy_name
         or f"{payload.rebalance_frequency.value} {payload.start_date}-{payload.end_date}"
     )
+    # Pre-generate task_id so it can be committed in the same transaction as the
+    # BacktestResult row, eliminating the two-commit race where a failed second
+    # commit would orphan a dispatched task with task_id=NULL.
+    task_id = str(uuid.uuid4())
     backtest = BacktestResult(
         user_id=current_user.id,
         portfolio_id=portfolio.id,
@@ -188,10 +192,10 @@ async def submit_backtest(
         initial_investment=payload.initial_investment,
         tickers=tickers,
         weights=[float(weight) for weight in weights],
+        task_id=task_id,
     )
     db.add(backtest)
     await db.commit()
-    await db.refresh(backtest)
 
     params = {
         "tickers": tickers,
@@ -203,7 +207,7 @@ async def submit_backtest(
         "initial_investment": float(payload.initial_investment),
     }
     try:
-        task = run_backtest.delay(str(backtest.id), params)
+        run_backtest.apply_async(args=[str(backtest.id), params], task_id=task_id)
     except Exception as exc:
         _logger.exception("failed to dispatch backtest task backtest_id=%s", backtest.id)
         raise HTTPException(
@@ -211,12 +215,9 @@ async def submit_backtest(
             detail="Failed to dispatch backtest task.",
         ) from exc
 
-    backtest.task_id = task.id
-    await db.commit()
-
     return BacktestSubmitResponse(
         backtest_id=backtest.id,
-        task_id=task.id,
+        task_id=task_id,
         status=backtest.status,
     )
 

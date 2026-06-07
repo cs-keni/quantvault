@@ -154,6 +154,11 @@ def run_backtest_engine(
     benchmark_equity = (
         initial_investment * (1.0 + benchmark_series).cumprod().to_numpy(dtype=np.float64)
     )
+    if not np.all(np.isfinite(portfolio_equity)):
+        raise ValueError(
+            "Portfolio equity contains non-finite values — check for extreme daily returns "
+            "or a total-wipeout position."
+        )
     previous_portfolio = np.concatenate(
         [np.array([initial_investment], dtype=np.float64), portfolio_equity[:-1]]
     )
@@ -219,6 +224,15 @@ async def _write_result_to_db(
             backtest = await session.get(BacktestResult, backtest_id)
             if backtest is None:
                 _logger.warning("backtest result %s not found for task write", backtest_id)
+                return
+            if backtest.status != BacktestStatus.PENDING:
+                # Guard against duplicate task execution or SoftTimeLimitExceeded
+                # firing after a successful commit — don't overwrite a settled result.
+                _logger.warning(
+                    "backtest %s already settled as %s — skipping write",
+                    backtest_id,
+                    backtest.status,
+                )
                 return
             backtest.status = status
             if result is not None:
