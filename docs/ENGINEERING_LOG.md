@@ -5,7 +5,7 @@ not a diff (git history is authoritative for that).
 
 ## 2026-06-06 — Phase 3: Portfolio Service and Risk Metrics
 
-Commit: (pending)
+Commit: cae7d23
 
 Implemented Phase 3 in full: ground-truth fixtures, pure-math risk service, portfolio CRUD, and
 metrics endpoints. All 89 tests passing, ruff clean, mypy 0 errors (40 source files).
