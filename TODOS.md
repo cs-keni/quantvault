@@ -1,0 +1,51 @@
+# QuantVault — Deferred TODOs
+
+Items considered during `/plan-eng-review` sessions that were explicitly deferred. Each entry has enough context for a future session to pick it up.
+
+---
+
+## TODO-1: Cache Stampede Protection for Efficient Frontier
+
+**What:** Add a Redis SETNX distributed lock (keyed on the frontier cache key) in `POST /analysis/frontier` to prevent two simultaneous identical requests from dispatching duplicate Celery tasks.
+
+**Why:** Two concurrent POSTs for `(["SPY","BND"], "1y")` both miss the cache and both dispatch `compute_frontier`. They race to write the same result. Result: duplicate work, two wasted Celery worker slots, possible cache key collision from concurrent writes.
+
+**Pros:** Eliminates duplicate Celery work; Redis SETNX with 5-minute expiry is simple and battle-tested.
+
+**Cons:** Adds a lock acquisition step on every cache-miss POST; minor complexity.
+
+**Context:** Accepted as-is during Phase 4 `/plan-eng-review` (2026-06-06). For a single-developer MVP, stampede probability is near zero. Becomes relevant at multi-user scale or during load testing. Implementation: `nx=True, ex=300` on `redis.set(lock_key)` before dispatching; check existing task_id from a task registry if lock already held.
+
+**Depends on:** Phase 4 (Efficient Frontier) — need the frontier endpoint working first.
+
+---
+
+## TODO-2: Tikhonov Regularization for Near-Singular Covariance
+
+**What:** Add a small diagonal term to the covariance matrix before optimization: `cov_regularized = cov + epsilon * np.eye(n)` where `epsilon=1e-8`.
+
+**Why:** Highly correlated assets (e.g., VOO and SPY, both tracking S&P 500) produce near-singular covariance matrices. SLSQP can fail to converge, return suboptimal weights, or produce numerically unstable results even when duplicate-ticker validation passes. Tikhonov regularization stabilizes the matrix at negligible cost to accuracy.
+
+**Pros:** Prevents spurious solver failures for correlated-but-distinct assets; mathematically well-understood; standard in MPT implementations.
+
+**Cons:** Slightly biases the optimization toward equal-weight when correlations are near 1.0; epsilon must be tuned.
+
+**Context:** Deferred from Phase 4 `/plan-eng-review` (2026-06-06). Current mitigation: infeasible target returns are skipped (partial frontier). Full regularization is hardening for post-MVP. Lives in `optimization_service.generate_efficient_frontier()`.
+
+**Depends on:** Phase 4 (Efficient Frontier).
+
+---
+
+## TODO-3: Re-evaluate Celery for Phase 4 After Phases 5–6 Land
+
+**What:** After Monte Carlo (Phase 5) and Backtesting (Phase 6) are implemented, benchmark Phase 4 frontier computation time and consider whether to simplify it to `asyncio.to_thread()` instead of Celery.
+
+**Why:** Efficient frontier with warm starts takes ~1s. For a ~1s operation, Celery adds operational overhead (worker process, result backend, Redis result expiry) with limited benefit. Codex raised this in the outside-voice review. Celery is the right call for Phases 5–6 (Monte Carlo: ~5–30s; Backtest: ~10–60s depending on history length).
+
+**Pros:** Simpler stack; no Celery worker required in Phase 8 deployment if frontier is the only async task.
+
+**Cons:** Phases 5–6 already require Celery, so the worker is there regardless. Simplifying Phase 4 creates inconsistency in the async task pattern.
+
+**Context:** Deferred from Phase 4 `/plan-eng-review` (2026-06-06). Decision: keep Celery for Phase 4 to maintain consistency. Re-evaluate after Phase 6 once you have real benchmark data for all three task types.
+
+**Depends on:** Phase 5 + Phase 6 implementation complete.

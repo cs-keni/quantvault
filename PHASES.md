@@ -17,7 +17,7 @@
 | 6 | Backtest: init `current_allocation` from `price_data.iloc[0]` | prevents UnboundLocalError on day 1 |
 | 7 | `User.default_portfolio_id FK` (not `Portfolio.is_default bool`) | avoids multi-row constraint bugs |
 | 8 | `portfolio_to_weights()` centralized in portfolio_service.py | single Decimal→float conversion point |
-| 9 | `ProcessPoolExecutor.map()` for frontier parallelism | 100 minimize calls run in parallel |
+| 9 | Sequential warm-start loop for frontier (NOT ProcessPoolExecutor) | fork-from-Celery-prefork risk; warm starts make 100×10ms=1s fast enough without PPE |
 | 10 | MC capped: `n_simulations ≤ 1000`, `years ≤ 30` | Pydantic validators; prevents memory explosion |
 | 11 | MC contributions: inject at year boundary, compound forward | `cumprod` add-to-all approach is financially wrong |
 | 12 | CVaR: `var_index = max(int(...), 1)` | prevents empty slice → NaN at high confidence levels |
@@ -36,6 +36,17 @@
 | 25 | `^TNX` math: Yahoo returns yield as percentage (e.g. 4.21 = 4.21%) → `raw / 100` gives decimal 0.0421 | "divide by 10" in original docs was wrong — `4.2 / 10 = 0.42` (42%), not a risk-free rate; fallback `0.04` cross-confirms: raw ~4.0 / 100 = 0.04 |
 | 26 | `fakeredis[aioredis]` for Redis test isolation | `AsyncMock` can only assert setex called; `fakeredis` enables real cache hit/miss behavioral tests (second call skips yfinance) |
 | 27 | Smoke tests gated behind `INTEGRATION_TESTS=1` env flag | live-network tests in default pytest cause flaky CI; mark with `@pytest.mark.skipif(not os.getenv("INTEGRATION_TESTS"), ...)` |
+| 28 | Celery task for frontier lives in `app/services/optimization_service.py` (not `celery_tasks/`) | matches pre-written `celery_app.py` include comment and `quantvault.md` architecture diagram |
+| 29 | Frontier cache key: `qv:opt:frontier:{sorted_uppercase_tickers}:{period}`, 24h TTL | must uppercase-normalize before building key; rfr excluded from key (24h staleness acceptable) |
+| 30 | Frontier optimizer uses arithmetic daily means; reports geometric annual returns | SLSQP target-return constraint must be linear in weights (`w.T @ mu_arith >= target`); geometric return is non-linear and would break MPT math |
+| 31 | Celery task timeout: `soft_time_limit=55, time_limit=60` | yfinance fetch can take up to 30s; 25s soft limit (original plan) would kill task before data arrives |
+| 32 | Celery task calls `market_data_service._fetch_and_process_returns()` directly (sync); uses `redis.Redis` (sync) | Celery has no FastAPI DI and no event loop; must avoid async |
+| 33 | `find_min_variance_portfolio()` does not take `rfr` — min-variance optimization doesn't use it | rfr is only needed for max-Sharpe objective; including it was noisy |
+| 34 | `AsyncResult.info` on FAILURE must be serialized to `str()` before JSON response | raw Python exception object is not JSON-safe; FastAPI serializer raises HTTP 500 |
+| 35 | Frontier GET endpoint (`GET /api/v1/analysis/frontier/{task_id}`) returns `{task_id, status, result?, error?}` | non-blocking `.state` + `.info` read; never call `.get()` (would block async worker) |
+| 36 | Both frontier endpoints require `CurrentUser` auth | same pattern as Phase 3 security fix; unauthenticated callers must not trigger yfinance + Celery work |
+| 37 | `FrontierRequest.tickers`: uppercase normalize before dedup check; max 30 tickers; pattern same as `AdHocHolding.ticker` | "AAPL" and "aapl" must be caught as duplicates; ticker count cap prevents slow/unstable covariance for large N |
+| 38 | Solver failure at a target return → skip point, return best-effort partial frontier | SLSQP `status != 0` at a specific target is normal (infeasible constraint); the whole task should not fail for partial infeasibility |
 
 ---
 
@@ -144,20 +155,49 @@
 ---
 
 ## Phase 4 — Efficient Frontier
-> **Run `/plan-eng-review` before starting Phase 4** — optimization is the most math-heavy piece.
+> **`/plan-eng-review` completed 2026-06-06** — architecture locked in decisions 28–38 above.
+> Run `/review` before marking Phase 4 complete (financial math phase, non-negotiable).
 
-- [ ] Implement `generate_efficient_frontier()` in `optimization_service.py`
-  - **Solve min-variance portfolio first; use `min_feasible_return` as lower bound for target range** (not `mean_returns.min()`)
-  - **Parallelize 100 `scipy.optimize.minimize` calls with `ProcessPoolExecutor.map()`**
-  - Long-only constraints: `bounds=[(0, 1)] * n_assets`
-  - Warm start: use previous result's weights as `x0` for adjacent target returns
-- [ ] Implement `find_min_variance_portfolio()` — already computed as the lower-bound solve above (reuse result)
-- [ ] Implement `find_max_sharpe_portfolio()` — direct optimization on negative Sharpe
-- [ ] Wire into Celery task (`celery_tasks/efficient_frontier.py`) — POST returns task ID, GET polls for result
-- [ ] Verify with known asset pairs: 100% SPY on frontier, 60/40 SPY+BND lower risk than 100% SPY, max Sharpe > individual Sharpe
-- [ ] Write unit tests: weights sum to 1 on every point, all weights ≥ 0, N successful points out of N targets
+- [ ] Add schemas: `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse` in `schemas/portfolio.py`
+  - `FrontierRequest.tickers`: max 30, uppercase normalize, pattern `^[A-Za-z0-9.^=\-]{1,20}$`, dedup after normalization
+- [ ] Implement `optimization_service.py` (pure math + Celery task):
+  - `find_min_variance_portfolio(returns_df) -> (weights, ann_return_arith, ann_vol)` — no rfr arg (decision 33)
+  - `find_max_sharpe_portfolio(returns_df, rfr) -> (weights, ann_return_arith, ann_vol, sharpe)` — guard if vol < 1e-8
+  - `generate_efficient_frontier(returns_df, rfr, n_points=100) -> list[FrontierPoint]`
+    - **Solve min-variance first; use its arithmetic annual return as lower bound for target range** (decision 13)
+    - **100 target returns via `np.linspace(min_return, max_individual_return, n_points)`**
+    - **SLSQP, `bounds=[(0, 1)] * n`, weights-sum-to-1 + `port_arith_return >= target` constraints**
+    - **Sequential warm starts: pass each solve's weights as `x0` to the next** (decision 9/updated)
+    - **Infeasible target (SLSQP status ≠ 0) → skip point, continue** (decision 38)
+    - **Output: `FrontierPoint.annual_return` = geometric `(1+mean_daily_port_r)^252 - 1`** (decision 30)
+  - `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60) def compute_frontier(self, tickers, period)` (decision 31)
+    - Fetch returns via `_fetch_and_process_returns()` directly (sync, no DI) (decision 32)
+    - Cache read/write via `redis.Redis.from_url(settings.REDIS_URL)` (sync) (decision 32)
+    - Cache key: `qv:opt:frontier:{sorted(uppercase_tickers)}:{period}`, 24h TTL (decision 29)
+    - Catch `SoftTimeLimitExceeded`, store as clean FAILURE
+- [ ] Update `celery_app.py` — uncomment `"app.services.optimization_service"` include (decision 28)
+- [ ] Add endpoints to `api/v1/analysis.py`:
+  - `POST /api/v1/analysis/frontier` — `CurrentUser` required (decision 36); validate request; cache hit → return `FrontierSubmitResponse(status="SUCCESS", result=...)` immediately; cache miss → dispatch task, return `FrontierSubmitResponse(task_id=..., status="PENDING")`
+  - `GET /api/v1/analysis/frontier/{task_id}` — `CurrentUser` required; non-blocking `AsyncResult.state/.info`; serialize `.info` to `str()` on FAILURE (decision 34/35)
+- [ ] Write `tests/test_efficient_frontier.py`:
+  - **Math unit tests (deterministic fixtures, no live data):**
+    - `weights sum to 1.0 ± 1e-6` on every frontier point
+    - `all weights ≥ 0` on every point
+    - `N successful points returned` (≤ 100)
+    - Min-variance point has lower vol than equal-weight portfolio
+    - Max-Sharpe weights are valid (sum to 1, ≥ 0, Sharpe ≥ each individual asset's Sharpe)
+    - Known 2-asset cov matrix → analytically verifiable min-variance weights
+  - **API integration tests:**
+    - `POST /frontier` unauthenticated → 401
+    - `POST /frontier` duplicate tickers (after normalization) → 422
+    - `POST /frontier` < 2 tickers → 422
+    - `POST /frontier` invalid period → 422
+    - `POST /frontier` > 30 tickers → 422
+    - `GET /frontier/{task_id}` unauthenticated → 401
+    - FAILURE state returns `{status: FAILURE, error: str}` not HTTP 500
+- [ ] Run `/review` before marking Phase 4 complete
 
-**QoL:** Cache frontier result in Redis by `(sorted_tickers, period)` with 24h TTL — re-running with same inputs is instant.
+**QoL:** Cache frontier result in Redis by `(sorted_uppercase_tickers, period)` with 24h TTL — re-running with same inputs is instant. Cache hit on POST returns result immediately (no Celery dispatch).
 
 ---
 

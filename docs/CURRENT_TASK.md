@@ -1,5 +1,29 @@
 # Current Task
 
+**Phase 4 — Efficient Frontier** 🔄 ready to implement
+
+`/plan-eng-review` completed 2026-06-06. Architecture locked in PHASES.md decisions 28–38. All implementation tasks defined. See PHASES.md Phase 4 section for the full spec.
+
+**Implement in this order:**
+1. `backend/app/schemas/portfolio.py` — add `FrontierRequest`, `FrontierPoint`, `FrontierResult`, `FrontierTaskStatus`, `FrontierSubmitResponse`
+2. `backend/app/services/optimization_service.py` (NEW) — `find_min_variance_portfolio`, `find_max_sharpe_portfolio`, `generate_efficient_frontier`, `@celery_app.task compute_frontier`
+3. `backend/app/celery_app.py` — uncomment `"app.services.optimization_service"` in the include list
+4. `backend/app/api/v1/analysis.py` — add `POST /analysis/frontier` and `GET /analysis/frontier/{task_id}`
+5. `backend/tests/test_efficient_frontier.py` (NEW) — math unit tests + API integration tests
+
+**Run `/review` before marking Phase 4 complete** (financial math phase, non-negotiable).
+
+### Key implementation rules (all locked — do not re-debate):
+- Celery task: call `market_data_service._fetch_and_process_returns(sorted_tickers, period)` directly (sync); use `redis.Redis.from_url(settings.REDIS_URL)` (sync — NOT redis.asyncio). There is no FastAPI DI in Celery workers.
+- Optimizer: use **arithmetic** daily mean returns for `w.T @ mu >= target` constraint; report **geometric** annual return `(1+mean_daily_port_r)^252 - 1` in `FrontierPoint.annual_return`
+- Celery task decorator: `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60)` (yfinance can take up to 30s; 25s would kill the task before data arrives)
+- Auth: `CurrentUser` required on **both** endpoints (unauthenticated callers must not trigger yfinance + Celery work)
+- `AsyncResult.info` on FAILURE is a raw Python exception — **must** `str(result.info)` before including in response (FastAPI's JSON encoder raises HTTP 500 on raw exceptions)
+- Duplicate ticker check: uppercase-normalize first, then dedup — `["AAPL", "aapl"]` must be caught
+- Solver failure at an infeasible target return: skip the point, continue, return partial frontier
+
+---
+
 **Phase 3 — Portfolio Service and Risk Metrics** ✅ complete (review passed)
 
 Implementation complete. 102 tests passing (2 skipped — integration-only), ruff clean.

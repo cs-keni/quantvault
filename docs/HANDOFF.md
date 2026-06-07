@@ -5,6 +5,31 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-06 (Phase 4 — Efficient Frontier ready to implement)
+
+Phases 0–3 complete. `/plan-eng-review` completed for Phase 4; architecture locked in `PHASES.md` decisions 28–38. See `CURRENT_TASK.md` for the ordered implementation steps and all locked rules.
+
+**New file: `optimization_service.py`** — will own all Markowitz MPT math:
+- `find_min_variance_portfolio(returns_df)` → `(weights, ann_return_arith, ann_vol)` — no `rfr` arg
+- `find_max_sharpe_portfolio(returns_df, rfr)` → weights + metrics
+- `generate_efficient_frontier(returns_df, rfr, n_points=100)` → list of `FrontierPoint`
+- `@celery_app.task(bind=True, soft_time_limit=55, time_limit=60) compute_frontier(tickers, period)` — sync yfinance + sync Redis, no DI
+
+**New endpoints in `analysis.py`:**
+- `POST /api/v1/analysis/frontier` — cache hit → immediate result; cache miss → task_id + PENDING
+- `GET /api/v1/analysis/frontier/{task_id}` — non-blocking `.state`/`.info` poll
+
+**Critical gotchas for Phase 4 (do not skip):**
+- Celery task must NOT use async code — call `_fetch_and_process_returns()` directly (it's sync), use `redis.Redis` not `redis.asyncio.Redis`
+- Arithmetic means in optimizer (`w.T @ mu_arith >= target`), geometric in output (FrontierPoint.annual_return)
+- `AsyncResult.info` on FAILURE is a Python exception object — `str()` it before JSON response
+- Both endpoints require `CurrentUser` auth (Phase 3 caught a missing-auth bug; frontier must not repeat it)
+
+**Phase 3 `/review` summary (2026-06-06, commit 9f5ebbb):**
+- 6 bugs fixed: unauthenticated ad-hoc metrics endpoint, `confidence=0` IndexError, correlation NaN→HTTP 500, `update_portfolio` None check, `benchmark_ticker` pattern constraint, ad-hoc weight-sum silently re-normalized
+- 14 new tests added (`tests/test_analysis.py`)
+- Gate: 102 passed, 2 skipped, ruff clean
+
 ## State as of 2026-06-06 (Phase 1 — Domain, Database, and Auth complete & verified)
 
 Domain layer + JWT auth are live on top of the Phase 0 scaffold:

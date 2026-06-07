@@ -3,6 +3,34 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-06 — Phase 4: /plan-eng-review complete, architecture locked
+
+Commit: (planning session — no code committed yet)
+
+Full `/plan-eng-review` for Phase 4 (Efficient Frontier). 11 architecture and code quality issues found across 4 review sections + Codex outside voice. All resolved. Key decisions locked in PHASES.md decisions 28–38:
+
+**Architecture changes from original plan:**
+- `ProcessPoolExecutor` removed — replaced with sequential warm-start loop (~1s total; fork-from-prefork risk avoided)
+- Celery task moves to `optimization_service.py` (not `celery_tasks/efficient_frontier.py` — spec and `celery_app.py` both point here)
+- Return convention fixed: arithmetic means in optimizer, geometric in output (MPT correctness — non-linear geometric means break SLSQP target constraint)
+- Task timeout corrected: `soft=55s, hard=60s` (not `25/30` — yfinance fetch can take up to 30s)
+- Celery task integration: call `_fetch_and_process_returns()` directly (sync), use `redis.Redis` (sync) — no FastAPI DI in Celery worker context
+
+**New correctness requirements:**
+- Duplicate tickers → 422 at API layer (after uppercase normalization — `"AAPL"` and `"aapl"` are duplicates)
+- Single-asset input → 422 (frontier requires ≥ 2 assets)
+- `AsyncResult.info` on FAILURE → `str(result.info)` (raw exception is not JSON-safe → HTTP 500)
+- `find_min_variance_portfolio` takes no `rfr` arg (min-variance doesn't use it)
+- Infeasible target returns → skip point, return partial frontier (not task FAILURE)
+
+**Test plan update:**
+- Added `test_efficient_frontier.py` requirement with math unit tests (deterministic fixtures) + API integration tests (401, 422 variants, task states)
+- `max Sharpe > individual Sharpe` is a wrong invariant — replaced with: max-Sharpe weights valid and Sharpe ≥ each individual asset's Sharpe
+
+**New files to create:** TODOS.md (3 deferred items: cache stampede protection, Tikhonov regularization, Celery re-evaluation)
+
+---
+
 ## 2026-06-06 — Phase 3: /review findings and fixes
 
 Commit: 9f5ebbb
