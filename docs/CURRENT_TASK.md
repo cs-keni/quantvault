@@ -1,5 +1,19 @@
 # Current Task
 
+**Phase 5 — Monte Carlo Simulation** — architecture locked, ready for implementation
+
+`/plan-eng-review` complete (2026-06-07, commit `69689a3`). 17 decisions locked (PHASES.md decisions 39–55). 5 implementation tasks ready for Codex.
+
+Implementation order (parallel where possible):
+- Lane A (parallel): `app/models/simulation_result.py` + Alembic migration
+- Lane B (parallel): `app/services/simulation_service.py` (`run_monte_carlo()` + Celery task)
+- Lane C (after A+B): `app/schemas/simulation.py` + `app/api/v1/simulation.py` + `app/main.py`
+- Lane D (after C): `tests/test_simulation.py` (18 tests)
+
+Run `/review` before marking Phase 5 complete (financial math phase, non-negotiable).
+
+---
+
 **Phase 4 — Efficient Frontier** ✅ complete (2026-06-07, review passed)
 
 `/review` pass complete. 2 informational fixes applied:

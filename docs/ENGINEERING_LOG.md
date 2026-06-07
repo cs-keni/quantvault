@@ -3,6 +3,30 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Phase 5: /plan-eng-review complete, architecture locked (decisions 39-55)
+
+Commit: 69689a3
+
+Full `/plan-eng-review` for Phase 5 Monte Carlo Simulation. 9 interactive decisions resolved. 17 architecture decisions locked in PHASES.md (decisions 39–55). Codex outside voice ran and caught 6 additional issues absorbed into decisions. 2 new TODOs added (TODO-4: orphan cleanup, TODO-5: vectorized fast-path).
+
+**Key decisions locked:**
+- `np.random.default_rng(seed)` (thread-safe, not global `np.random.seed()`)
+- Contribution fence-post fix: `portfolio_values[year*252 - 1]` for `year in range(1, years+1)` → exactly N injections
+- `probability_of_profit` vs. total outlay (initial + contributions × years)
+- `SimulationResult` ORM model: new file, nullable `portfolio_id`, required `user_id`, `tickers`/`weights`/`period` columns for audit trail
+- Celery DB bridge: `asyncio.run()` with **fresh** async engine created inside each call (not module-level engine — avoids event-loop/pool conflict)
+- `GET /simulation/{id}` filters by both `id` AND `user_id` (cross-user read guard)
+- `portfolio_id` ownership validation at POST time if provided
+- Same Celery timeouts as Phase 4: `soft_time_limit=55, time_limit=60`
+- API input: `tickers + weights + period` (ad-hoc) with optional `portfolio_id` link
+
+**5 implementation tasks** ready for Codex:
+- T1: `run_monte_carlo()` in simulation_service.py
+- T2: `SimulationResult` model + Alembic migration
+- T3: Celery `run_simulation` task + asyncio.run() DB bridge
+- T4: API endpoints (POST + GET) with full input validation
+- T5: `tests/test_simulation.py` (18 tests)
+
 ## 2026-06-07 — Phase 4: /review pass — 2 fixes, Phase 4 complete
 
 Commit: e83e640
