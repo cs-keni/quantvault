@@ -145,18 +145,27 @@ class MarketDataService:
         }
         try:
             resp = requests.get(url, params=params, timeout=15)
+            if not resp.ok:
+                _logger.warning(
+                    "Tiingo HTTP %d for ticker=%s start=%s end=%s body=%.200s",
+                    resp.status_code, ticker, start, end, resp.text,
+                )
             resp.raise_for_status()
             data = resp.json()
             if not data:
-                _logger.warning("Tiingo returned empty data for ticker=%s", ticker)
+                _logger.warning(
+                    "Tiingo empty data ticker=%s start=%s end=%s", ticker, start, end
+                )
                 return None
             df = pd.DataFrame(data)
             # Tiingo dates: "2024-01-02T00:00:00+00:00" — strip timezone
             df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
             df = df.set_index("date").sort_index()
             return df["close"]
+        except requests.HTTPError:
+            return None
         except Exception as exc:
-            _logger.warning("Tiingo fetch failed ticker=%s: %s", ticker, exc)
+            _logger.warning("Tiingo fetch failed ticker=%s start=%s end=%s: %s", ticker, start, end, exc)
             return None
 
     def _yahoo_close(self, ticker: str, start: date, end: date) -> pd.Series | None:

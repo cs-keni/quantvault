@@ -5,6 +5,7 @@ import uuid
 from decimal import Decimal
 from typing import Annotated
 
+from celery.result import EagerResult
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,6 +70,19 @@ async def submit_monte_carlo_simulation(
         ) from exc
 
     simulation.task_id = task.id
+
+    # In eager mode (USE_CELERY=false) the task runs synchronously and returns a
+    # result dict — we write the outcome here since the task can't do async DB
+    # writes from inside the event loop.
+    if isinstance(task, EagerResult) and isinstance(task.result, dict):
+        resp = task.result
+        if resp.get("ok"):
+            simulation.status = SimulationStatus.SUCCESS
+            simulation.results = resp.get("result")
+        else:
+            simulation.status = SimulationStatus.FAILURE
+            simulation.error = str(resp.get("error", "Task failed"))[:2000]
+
     await db.commit()
 
     return SimulationSubmitResponse(

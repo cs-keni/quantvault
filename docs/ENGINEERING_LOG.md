@@ -3,6 +3,38 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo: eager-mode-aware task architecture (second attempt)
+
+**Root cause (new finding):** The ThreadPoolExecutor approach deployed earlier still caused
+`delay()` to raise. Investigation of Celery 5.4 `trace.py` revealed: the outer exception
+handler in `build_tracer` has `except BaseException: raise` which ALWAYS propagates regardless
+of `task_eager_propagates=False`. In Python 3.8+, `asyncio.CancelledError` is a `BaseException`,
+so if `asyncio.run()` in the executor thread raised `CancelledError`, it escaped the task's
+`except Exception` handler, hit Celery's `except BaseException: raise`, and propagated through
+`delay()`.
+
+**Fix:** Remove async DB writes from the task entirely in eager mode. The task now returns a
+result dict `{"ok": True/False, "result": {...}, "error": "..."}` when `celery_app.conf.task_always_eager`
+is True. The endpoint imports `EagerResult`, detects eager mode, and writes the outcome to DB
+directly (it's already in async context — no threading needed). In real worker mode, the task
+still calls `_write_result_to_db_sync` → `asyncio.run()` directly (no running loop in workers).
+
+**Files:**
+- `backend/app/services/simulation_service.py` — eager-mode return, simplified `_write_result_to_db_sync`
+- `backend/app/services/backtest_service.py` — same pattern
+- `backend/app/api/v1/simulation.py` — EagerResult detection + inline DB write
+- `backend/app/api/v1/backtest.py` — EagerResult detection + inline DB write
+
+## 2026-06-08 — Add Tiingo debug endpoint + improve error logging
+
+**Why:** Backtest preflight check drops all 4 tickers (VTI, BND, VXUS, SPY). Root cause
+unknown — could be Tiingo rate limit, API key expiry, or date-range issue. Added
+`GET /health/tiingo` endpoint that tests a live Tiingo call for SPY/last-30-days and returns
+HTTP status, row count, and body preview. Enhanced `_tiingo_close` to log the HTTP status code
+and response body on non-200 responses.
+
+**Files:** `backend/app/main.py`, `backend/app/services/market_data_service.py`
+
 ## 2026-06-08 — Fix direct URL navigation / page reload auth failure
 
 **Root cause:** `authClient` in `frontend/src/store/authStore.ts` used a hardcoded relative

@@ -254,23 +254,9 @@ def _write_result_to_db_sync(
     error: str | None = None,
     task_id: str | None = None,
 ) -> None:
-    # When called from a real Celery worker (no running loop), asyncio.run() works
-    # fine. In eager/inline mode (USE_CELERY=false), the task runs synchronously
-    # inside FastAPI's event loop, so asyncio.run() would raise
-    # "This event loop is already running". Run in a thread instead — threads
-    # never inherit the parent's event loop, so asyncio.run() always succeeds.
-    coro = _write_result_to_db(backtest_id, status, result, error, task_id)
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop is not None and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            pool.submit(asyncio.run, coro).result()
-    else:
-        asyncio.run(coro)
+    # Only called from real Celery workers (no running event loop).
+    # In eager mode (USE_CELERY=false), the endpoint handles DB writes directly.
+    asyncio.run(_write_result_to_db(backtest_id, status, result, error, task_id))
 
 
 def _fetch_risk_free_rate_sync(market_service: MarketDataService) -> float:
@@ -282,11 +268,19 @@ def _fetch_risk_free_rate_sync(market_service: MarketDataService) -> float:
 
 
 @celery_app.task(bind=True, soft_time_limit=55, time_limit=60)
-def run_backtest(self: Any, backtest_id: str, params: dict[str, Any]) -> None:
-    """Celery task for a persisted backtest run."""
+def run_backtest(self: Any, backtest_id: str, params: dict[str, Any]) -> dict[str, Any] | None:
+    """Celery task for a persisted backtest run.
+
+    In eager mode (USE_CELERY=false): returns a result dict for the endpoint to
+    persist — avoids asyncio-in-asyncio conflicts when the task runs synchronously
+    inside FastAPI's event loop.
+
+    In real worker mode: writes SUCCESS/FAILURE directly to the backtest_results row.
+    """
     backtest_uuid = uuid.UUID(backtest_id)
     task_id = cast(str | None, getattr(self.request, "id", None))
     redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    eager = celery_app.conf.task_always_eager
     try:
         tickers = [str(ticker).upper() for ticker in params["tickers"]]
         weights = np.asarray(params["weights"], dtype=np.float64)
@@ -318,6 +312,8 @@ def run_backtest(self: Any, backtest_id: str, params: dict[str, Any]) -> None:
             rebalance_frequency=rebalance_frequency,
             rfr=_fetch_risk_free_rate_sync(market_service),
         )
+        if eager:
+            return {"ok": True, "result": result, "task_id": task_id}
         _write_result_to_db_sync(
             backtest_uuid,
             BacktestStatus.SUCCESS,
@@ -325,28 +321,35 @@ def run_backtest(self: Any, backtest_id: str, params: dict[str, Any]) -> None:
             error=None,
             task_id=task_id,
         )
+        return None
     except SoftTimeLimitExceeded:
-        try:
-            _write_result_to_db_sync(
-                backtest_uuid,
-                BacktestStatus.FAILURE,
-                result=None,
-                error="timeout",
-                task_id=task_id,
-            )
-        except Exception:
-            _logger.exception("failed to write timeout failure for backtest_id=%s", backtest_id)
+        if not eager:
+            try:
+                _write_result_to_db_sync(
+                    backtest_uuid,
+                    BacktestStatus.FAILURE,
+                    result=None,
+                    error="timeout",
+                    task_id=task_id,
+                )
+            except Exception:
+                _logger.exception(
+                    "failed to write timeout failure for backtest_id=%s", backtest_id
+                )
+        return {"ok": False, "error": "timeout", "task_id": task_id} if eager else None
     except Exception as exc:
         _logger.exception("backtest task failed backtest_id=%s", backtest_id)
-        try:
-            _write_result_to_db_sync(
-                backtest_uuid,
-                BacktestStatus.FAILURE,
-                result=None,
-                error=str(exc)[:2000],
-                task_id=task_id,
-            )
-        except Exception:
-            _logger.exception("failed to write failure for backtest_id=%s", backtest_id)
+        if not eager:
+            try:
+                _write_result_to_db_sync(
+                    backtest_uuid,
+                    BacktestStatus.FAILURE,
+                    result=None,
+                    error=str(exc)[:2000],
+                    task_id=task_id,
+                )
+            except Exception:
+                _logger.exception("failed to write failure for backtest_id=%s", backtest_id)
+        return {"ok": False, "error": str(exc)[:2000], "task_id": task_id} if eager else None
     finally:
         cast(Any, redis_client).close()

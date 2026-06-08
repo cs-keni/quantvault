@@ -25,6 +25,42 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/health/tiingo", tags=["health"])
+    async def health_tiingo() -> dict[str, object]:
+        """Test Tiingo API connectivity from this server. Returns status code and row count."""
+        import asyncio
+        from datetime import date, timedelta
+
+        import requests as _req
+
+        from app.core.config import settings as _s
+
+        ticker = "SPY"
+        end = date.today()
+        start = end - timedelta(days=30)
+        url = f"https://api.tiingo.com/tiingo/daily/{ticker}/prices"
+        params = {
+            "startDate": start.isoformat(),
+            "endDate": end.isoformat(),
+            "token": _s.TIINGO_API_KEY,
+        }
+        try:
+            resp = await asyncio.to_thread(
+                lambda: _req.get(url, params=params, timeout=15)
+            )
+            data = resp.json() if resp.ok else resp.text
+            return {
+                "status_code": resp.status_code,
+                "ticker": ticker,
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "rows": len(data) if isinstance(data, list) else None,
+                "body_preview": str(data)[:300] if not isinstance(data, list) else None,
+                "key_configured": bool(_s.TIINGO_API_KEY),
+            }
+        except Exception as exc:
+            return {"error": str(exc), "key_configured": bool(_s.TIINGO_API_KEY)}
+
     app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
     app.include_router(
         market_data.router,

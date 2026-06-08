@@ -150,37 +150,26 @@ def _write_result_to_db_sync(
     error: str | None = None,
     task_id: str | None = None,
 ) -> None:
-    # When called from a real Celery worker (no running loop), asyncio.run() works
-    # fine. In eager/inline mode (USE_CELERY=false), the task runs synchronously
-    # inside FastAPI's event loop, so asyncio.run() would raise
-    # "This event loop is already running". Run in a thread instead — threads
-    # never inherit the parent's event loop, so asyncio.run() always succeeds.
-    coro = _write_result_to_db(simulation_id, status, result, error, task_id)
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop is not None and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            pool.submit(asyncio.run, coro).result()
-    else:
-        asyncio.run(coro)
+    # Only called from real Celery workers (no running event loop).
+    # In eager mode (USE_CELERY=false), the endpoint handles DB writes directly.
+    asyncio.run(_write_result_to_db(simulation_id, status, result, error, task_id))
 
 
 @celery_app.task(bind=True, soft_time_limit=55, time_limit=60)
-def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> None:
+def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> dict[str, Any] | None:
     """Celery task for a persisted Monte Carlo simulation.
 
-    The worker uses sync yfinance through `MarketDataService`'s private fetch
-    helper, computes portfolio return/volatility via `risk_service`, runs the
-    fat-tailed Monte Carlo simulation, and writes SUCCESS/FAILURE back to the
-    `simulation_results` row using a fresh async engine inside `asyncio.run()`.
+    In eager mode (USE_CELERY=false): returns a result dict for the endpoint to
+    persist — avoids asyncio-in-asyncio conflicts when the task runs synchronously
+    inside FastAPI's event loop.
+
+    In real worker mode: writes SUCCESS/FAILURE directly to the simulation_results
+    row using a fresh async engine.
     """
     simulation_uuid = uuid.UUID(simulation_id)
     task_id = cast(str | None, getattr(self.request, "id", None))
     redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    eager = celery_app.conf.task_always_eager
     try:
         tickers = [str(ticker).upper() for ticker in params["tickers"]]
         weights = np.asarray(params["weights"], dtype=np.float64)
@@ -209,6 +198,8 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> Non
             annual_contribution=float(params.get("annual_contribution", 0.0)),
             seed=cast(int | None, params.get("seed")),
         )
+        if eager:
+            return {"ok": True, "result": result, "task_id": task_id}
         _write_result_to_db_sync(
             simulation_uuid,
             SimulationStatus.SUCCESS,
@@ -216,28 +207,37 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> Non
             error=None,
             task_id=task_id,
         )
+        return None
     except SoftTimeLimitExceeded:
-        try:
-            _write_result_to_db_sync(
-                simulation_uuid,
-                SimulationStatus.FAILURE,
-                result=None,
-                error="timeout",
-                task_id=task_id,
-            )
-        except Exception:
-            _logger.exception("failed to write timeout failure for simulation_id=%s", simulation_id)
+        if not eager:
+            try:
+                _write_result_to_db_sync(
+                    simulation_uuid,
+                    SimulationStatus.FAILURE,
+                    result=None,
+                    error="timeout",
+                    task_id=task_id,
+                )
+            except Exception:
+                _logger.exception(
+                    "failed to write timeout failure for simulation_id=%s", simulation_id
+                )
+        return {"ok": False, "error": "timeout", "task_id": task_id} if eager else None
     except Exception as exc:
         _logger.exception("simulation task failed simulation_id=%s", simulation_id)
-        try:
-            _write_result_to_db_sync(
-                simulation_uuid,
-                SimulationStatus.FAILURE,
-                result=None,
-                error=str(exc)[:2000],
-                task_id=task_id,
-            )
-        except Exception:
-            _logger.exception("failed to write failure for simulation_id=%s", simulation_id)
+        if not eager:
+            try:
+                _write_result_to_db_sync(
+                    simulation_uuid,
+                    SimulationStatus.FAILURE,
+                    result=None,
+                    error=str(exc)[:2000],
+                    task_id=task_id,
+                )
+            except Exception:
+                _logger.exception(
+                    "failed to write failure for simulation_id=%s", simulation_id
+                )
+        return {"ok": False, "error": str(exc)[:2000], "task_id": task_id} if eager else None
     finally:
         cast(Any, redis_client).close()

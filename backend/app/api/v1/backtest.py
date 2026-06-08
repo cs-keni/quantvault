@@ -22,6 +22,8 @@ from app.schemas.backtest import (
     BacktestTearsheet,
     EquityCurvePoint,
 )
+from celery.result import EagerResult
+
 from app.services import portfolio_service
 from app.services.backtest_service import run_backtest
 from app.services.market_data_service import MarketDataService, get_market_data_service
@@ -207,13 +209,28 @@ async def submit_backtest(
         "initial_investment": float(payload.initial_investment),
     }
     try:
-        run_backtest.apply_async(args=[str(backtest.id), params], task_id=task_id)
+        task = run_backtest.apply_async(args=[str(backtest.id), params], task_id=task_id)
     except Exception as exc:
         _logger.exception("failed to dispatch backtest task backtest_id=%s", backtest.id)
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to dispatch backtest task.",
         ) from exc
+
+    # In eager mode (USE_CELERY=false) the task runs synchronously and returns a
+    # result dict — write the outcome here since the task can't do async DB writes.
+    if isinstance(task, EagerResult) and isinstance(task.result, dict):
+        resp = task.result
+        if resp.get("ok"):
+            backtest.status = BacktestStatus.SUCCESS
+            result_data = resp["result"]
+            backtest.tearsheet = result_data["tearsheet"]
+            backtest.daily_returns = result_data["daily_returns"]
+            backtest.equity_curve = result_data["equity_curve"]
+        else:
+            backtest.status = BacktestStatus.FAILURE
+            backtest.error = str(resp.get("error", "Task failed"))[:2000]
+        await db.commit()
 
     return BacktestSubmitResponse(
         backtest_id=backtest.id,
