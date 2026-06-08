@@ -3,6 +3,16 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — Fix Yahoo Finance blocking on Render (commit 2e23bde)
+
+`yf.download()` hits an endpoint Yahoo Finance aggressively blocks for cloud IPs,
+returning an empty response body that causes `JSONDecodeError`. Switched every
+call in `market_data_service.py` to `yf.Ticker(ticker, session=_YF_SESSION).history()`
+which hits a different endpoint and is less restricted. Updated: `_fetch_and_process_returns`,
+`_fetch_and_process_returns_by_date`, `_fetch_rfr`, `_fetch_quote`, `validate_tickers`.
+
+---
+
 ## 2026-06-08 — Deployment prep (Vercel + Render + Supabase + Upstash)
 
 Wired up the minimal code changes for a production deployment without a Celery worker.
