@@ -168,7 +168,9 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> dic
     """
     simulation_uuid = uuid.UUID(simulation_id)
     task_id = cast(str | None, getattr(self.request, "id", None))
-    redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    # rediss:// (Upstash TLS) requires explicit ssl_cert_reqs in redis-py's sync client
+    _ssl = {"ssl_cert_reqs": "none"} if settings.REDIS_URL.startswith("rediss://") else {}
+    redis_client = redis.Redis.from_url(settings.REDIS_URL, **_ssl)
     eager = celery_app.conf.task_always_eager
     try:
         tickers = [str(ticker).upper() for ticker in params["tickers"]]

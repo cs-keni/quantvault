@@ -3,6 +3,20 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo + Backtest: rediss:// ssl_cert_reqs for sync redis client
+
+**Root cause (definitive #2):** `redis.Redis.from_url(settings.REDIS_URL)` in both task
+functions raises `ValueError: A rediss:// URL must have parameter ssl_cert_reqs` before
+the try/except block is entered. The async redis client (`redis.asyncio.Redis`) handles
+TLS differently and doesn't enforce this. The sync client in redis-py requires an explicit
+`ssl_cert_reqs` kwarg when the scheme is `rediss://`. Diagnosed via `/health/celery` debug
+endpoint which called `run_simulation.apply()` and returned the exact exception type+message.
+
+**Fix:** Add `ssl_cert_reqs="none"` kwarg when creating the sync redis client for `rediss://`
+URLs. (Value `"none"` = `ssl.CERT_NONE` — data is still TLS-encrypted, just no cert validation.)
+
+**Files:** `backend/app/services/simulation_service.py`, `backend/app/services/backtest_service.py`
+
 ## 2026-06-08 — Fix Monte Carlo + Backtest: bypass Kombu broker in eager mode
 
 **Root cause (definitive):** `delay()` internally calls `apply_async()`, which enters a
