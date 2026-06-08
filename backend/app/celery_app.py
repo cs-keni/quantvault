@@ -2,10 +2,15 @@ from celery import Celery
 
 from app.core.config import settings
 
+# In eager mode (USE_CELERY=false) we handle DB writes in the endpoint directly,
+# so we don't need a persistent result backend. Use cache+memory:// to avoid
+# Celery's RedisBackend trying to validate the rediss:// SSL config at init time.
+_result_backend = settings.REDIS_URL if settings.USE_CELERY else "cache+memory://"
+
 celery_app = Celery(
     "quantvault",
     broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    backend=_result_backend,
     include=[
         # Task modules are registered here as each lands:
         "app.services.optimization_service",

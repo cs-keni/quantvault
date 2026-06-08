@@ -3,6 +3,25 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo + Backtest: use cache+memory backend in eager mode
+
+**Root cause (definitive #3, confirmed via /health/celery traceback):**
+`celery/app/trace.py:520` calls `task.backend.mark_as_done()` even after a successful task run
+(to record the result). Accessing `task.backend` lazily initializes `RedisBackend`, whose
+`__init__` validates the `rediss://` URL and raises `ValueError: rediss:// URL must have
+ssl_cert_reqs`. This happens in the outer `try` block of `trace_task`, which re-raises in
+eager mode (`if eager: raise`), propagating out of `apply()` to the endpoint's except block.
+
+The task function itself runs correctly and returns a dict — but the backend init crashes
+before `apply()` can return the `EagerResult`.
+
+**Fix:** In `celery_app.py`, use `"cache+memory://"` as the result backend when
+`USE_CELERY=false`. The in-memory backend has no SSL requirements and needs no external
+connection. In eager mode we write results directly in the endpoint anyway, so the backend
+is unused by design.
+
+**Files:** `backend/app/celery_app.py`
+
 ## 2026-06-08 — Fix Monte Carlo + Backtest: rediss:// ssl_cert_reqs for sync redis client
 
 **Root cause (definitive #2):** `redis.Redis.from_url(settings.REDIS_URL)` in both task
