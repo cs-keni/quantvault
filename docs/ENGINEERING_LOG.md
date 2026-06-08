@@ -3,13 +3,28 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
-## 2026-06-07 — Fix Yahoo Finance blocking on Render (commit 2e23bde)
+## 2026-06-07 — Switch to Tiingo for market data on Render (commits dd6a815, 90760a9, af40eff, 2e23bde)
 
-`yf.download()` hits an endpoint Yahoo Finance aggressively blocks for cloud IPs,
-returning an empty response body that causes `JSONDecodeError`. Switched every
-call in `market_data_service.py` to `yf.Ticker(ticker, session=_YF_SESSION).history()`
-which hits a different endpoint and is less restricted. Updated: `_fetch_and_process_returns`,
-`_fetch_and_process_returns_by_date`, `_fetch_rfr`, `_fetch_quote`, `validate_tickers`.
+**Root cause:** Render's free-tier shared IPs are on blocklists used by multiple financial data
+providers. Yahoo Finance blocks cloud IPs at the network level — both `yf.download()` and
+`yf.Ticker().history()` return empty response bodies causing `JSONDecodeError`. Stooq
+also connection-times out from Render. pandas_datareader 0.10.0 additionally crashes on
+Python 3.12 (imports removed `distutils.version` module).
+
+**Fix:** Switched to Tiingo REST API (`api.tiingo.com/tiingo/daily/{ticker}/prices`) which is
+explicitly designed for server-side/cloud use and is not IP-restricted. Free tier: 1000
+requests/day, 50 unique tickers/day — sufficient with 24h Redis caching.
+
+**Architecture change in `market_data_service.py`:**
+- Added `_close_series()` dispatcher: routes to `_tiingo_close()` when `TIINGO_API_KEY` is set,
+  falls back to `_yahoo_close()` (yfinance) for local dev where Yahoo Finance works.
+- All price-history callers (`_fetch_and_process_returns`, `_fetch_and_process_returns_by_date`,
+  `_fetch_quote`, `validate_tickers`) now go through `_close_series()`.
+- yfinance kept only for ticker info / search (metadata endpoints, less aggressively blocked).
+- `TIINGO_API_KEY` added to `Settings` and `render.yaml`. Empty default preserves local dev.
+
+**Verified:** Dashboard shows Growth2 Portfolio (VTI/BND/VXUS) — Sharpe 1.37, Sortino 2.03,
+annual return 17.02%, 0 dropped tickers. Metrics load in ~3s after cold start.
 
 ---
 
