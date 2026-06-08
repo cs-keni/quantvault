@@ -24,6 +24,17 @@ Built as a portfolio signal piece for investment-management employers — see
 | Frontend | React 18 + TypeScript + Vite, Tailwind CSS, Recharts, Zustand, TanStack Query |
 | Infra | PostgreSQL 16, Redis 7, Docker Compose (5 services: backend, frontend, db, redis, celery-worker) |
 
+## Infra State (Phase 8a)
+
+Phase 8a is complete as of 2026-06-08. The backend Docker image runs as
+non-root `appuser`; `backend/entrypoint.sh` applies Alembic migrations before
+starting uvicorn. GitHub Actions CI has backend, frontend, and Docker Compose
+build jobs. The README documents the motivation, architecture, financial
+concepts, setup, checks, and deferred screenshots section. Local lint/build/test
+gates and Docker Compose build smoke passed; an isolated five-service compose
+QA boot verified migrations, backend health, frontend-to-backend networking,
+and register/login through nginx `/api`.
+
 ## Repo layout
 
 ```

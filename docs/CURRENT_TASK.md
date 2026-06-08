@@ -6,9 +6,16 @@
 - ISSUE-001 (HIGH): Backend `_compute_metrics()` returning 500 instead of 503 on Yahoo Finance rate-limit → fixed in `ccca4c7`
 - ISSUE-002 (MEDIUM): `ComparePage` premature metrics queries + table render when < 2 portfolios selected → fixed in `0059387`
 
+**Phase 8a Infra** ✅ complete (2026-06-08)
+
+- Added backend non-root Docker runtime and migration entrypoint.
+- Added GitHub Actions CI workflow with backend, frontend, and Docker Compose build jobs.
+- Added README from scratch with motivation narrative, architecture diagram, financial concepts, local setup, checks, and deferred screenshots section.
+- Verification passed: frontend lint/test/build, backend ruff/mypy/pytest, Docker Compose build smoke, manual review, and isolated compose QA with register/login through nginx `/api`.
+
 **Phase 8b design locked** ✅ (2026-06-07) — `/plan-design-review` complete, decisions 71–80 in PHASES.md. All visual specs ready for implementation.
 
-**Next:** Phase 8a — Infra (Docker entrypoint, GitHub Actions CI, README). Phase 8a ships before 8b (Decision 56). After 8a passes `/review` + `/qa`, implement Phase 8b T4–T12 using the locked design spec in HANDOFF.md.
+**Next:** Implement Phase 8b T4–T12 using the locked design spec in HANDOFF.md. Phase 8a has shipped ahead of 8b per Decision 56.
 
 ---
 
@@ -288,6 +295,33 @@ Verification:
 - [x] ComparePage (`/compare`): multi-portfolio selector, side-by-side metrics table
 - [x] Global: loading skeletons on all data-fetching views, error states with retry
 - [ ] Run `/qa` before marking Phase 7 complete
+
+---
+
+## Phase 8a — Infra ✅ complete
+
+Implemented and verified 2026-06-08.
+
+- `backend/Dockerfile` creates non-root `appuser`, copies app files with `appuser` ownership, switches to `USER appuser`, and starts `CMD ["./entrypoint.sh"]`.
+- `backend/entrypoint.sh` runs `alembic upgrade head` before `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+- `.github/workflows/ci.yml` adds backend, frontend, and Docker Compose build jobs. Backend CI uses Postgres 16 and Redis 7 services and idempotently creates `quantvault_test`.
+- `README.md` now includes badges, motivation narrative, architecture ASCII diagram, financial concepts, setup, checks, and a deferred screenshots section for Phase 8b.
+
+Verification:
+- [x] `cd frontend && npm run lint` — passed
+- [x] `cd frontend && npm test` — 8 passed
+- [x] `cd frontend && npm run build` — passed; known Recharts large-bundle warning remains until Phase 8b lazy routes
+- [x] `cd backend && .venv/bin/ruff check app` — passed
+- [x] `cd backend && .venv/bin/mypy app` — passed
+- [x] `cd backend && .venv/bin/pytest -q` — 155 passed, 3 skipped, 1 passlib deprecation warning
+- [x] `docker compose build` — passed
+- [x] Manual Phase 8a review — no findings
+- [x] Isolated compose QA — all 5 services started; backend entrypoint ran Alembic migrations; backend health passed; frontend container reached backend; register/login through frontend nginx `/api` returned 201/200 with tokens
+
+Environment note: direct default compose boot hit a host-port conflict on
+`8000` in this WSL/Docker session even though no QuantVault container published
+that port. QA used a separate compose project on alternate host ports and
+in-network Docker checks to avoid disturbing the existing DB/Redis containers.
 
 ---
 

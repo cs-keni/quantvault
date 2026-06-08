@@ -3,6 +3,33 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Phase 8a: Infra implemented and verified
+
+Implemented and verified the locked Phase 8a infra slice.
+
+**Changed:**
+- Added `backend/entrypoint.sh` to run `alembic upgrade head` before uvicorn.
+- Updated `backend/Dockerfile` to create and run as non-root `appuser`.
+- Added `.github/workflows/ci.yml` with backend, frontend, and Docker Compose build jobs.
+- Wrote `README.md` from scratch with motivation, architecture, financial concepts, setup, checks, badges, and deferred screenshots.
+
+**Checks:**
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 8 passed
+- `cd frontend && npm run build` — passed; known Recharts large-bundle warning
+- `cd backend && .venv/bin/ruff check app` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest -q` — 155 passed, 3 skipped, 1 passlib warning
+- `docker compose build` — passed
+- Manual Phase 8a review — no findings
+- Isolated compose QA — all 5 services started; backend entrypoint ran Alembic migrations; backend health passed; frontend container reached backend; register/login through frontend nginx `/api` returned 201/200 with tokens
+
+**Gotcha:** default `docker compose up -d` hit a host-port conflict on `8000`
+in this WSL/Docker session even though Docker did not show a QuantVault
+container publishing that port and direct curl to localhost:8000 failed. QA used
+an isolated compose project on alternate host ports plus Docker in-network
+checks. Existing default DB/Redis containers were left running.
+
 ## 2026-06-07 — /plan-design-review Phase 8b: Design decisions locked
 
 Ran full 7-pass design review on Phase 8b UI overhaul. 10 new design decisions added to PHASES.md (decisions 71–80). Score lifted from 5/10 → 9/10.

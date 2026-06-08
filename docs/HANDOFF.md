@@ -5,6 +5,24 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-08 (Phase 8a Infra complete; Phase 8b next)
+
+Phase 8a is implemented and verified:
+- `backend/Dockerfile` now creates non-root `appuser`, copies the app with `appuser` ownership, switches to `USER appuser`, and starts `CMD ["./entrypoint.sh"]`.
+- `backend/entrypoint.sh` runs `alembic upgrade head` and then `uvicorn app.main:app --host 0.0.0.0 --port 8000`.
+- `.github/workflows/ci.yml` adds backend, frontend, and Docker Compose build jobs. The backend CI job uses Postgres 16 + Redis 7 services and idempotently creates `quantvault_test` before ruff/mypy/pytest.
+- `README.md` was written from scratch with project motivation, architecture, financial concepts, local setup, checks, badges, and a deferred screenshots section.
+
+Verification passed: frontend lint/test/build; backend ruff/mypy/pytest; Docker Compose build; manual review; isolated five-service compose QA. The QA boot verified Alembic migrations in `entrypoint.sh`, backend health, frontend-to-backend networking, and register/login through nginx `/api`.
+
+Environment note: default host port `8000` was unavailable in this WSL/Docker
+session even though no QuantVault container published it. QA used an isolated
+compose project with alternate host ports and Docker in-network checks. Existing
+default DB/Redis containers were left running; the temporary QA stack was
+stopped.
+
+Next: implement Phase 8b T4–T12 in order using the locked design spec below.
+
 ## State as of 2026-06-07 (Phase 8b design locked; Phase 8a Infra is next to implement)
 
 `/plan-design-review` complete. Phase 8b visual spec is fully locked — 10 decisions added to PHASES.md (decisions 71–80). Phase 8a (Infra: Dockerfile, CI, README) must ship first (Decision 56). After 8a, implement Phase 8b tasks T4–T12 in order.

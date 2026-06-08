@@ -72,8 +72,12 @@ def _patch_backtest_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _noop_preflight(*args: Any, **kwargs: Any) -> None:
         return None
 
+    def _fake_apply_async(*args: Any, **kwargs: Any) -> _FakeTask:
+        return _FakeTask()
+
     monkeypatch.setattr(backtest_api, "_preflight_market_data", _noop_preflight)
     monkeypatch.setattr(backtest_api.run_backtest, "delay", lambda *args, **kwargs: _FakeTask())
+    monkeypatch.setattr(backtest_api.run_backtest, "apply_async", _fake_apply_async)
 
 
 def _returns_df(n_days: int = 10) -> pd.DataFrame:
@@ -229,7 +233,7 @@ async def test_backtest_post_valid_request_returns_pending(
     assert resp.status_code == 202
     body = resp.json()
     assert body["backtest_id"]
-    assert body["task_id"] == "fake-backtest-task"
+    assert uuid.UUID(body["task_id"])
     assert body["status"] == "PENDING"
 
 

@@ -542,11 +542,12 @@
 
 ### Phase 8a — Infra
 
-- [ ] **T1** — `backend/Dockerfile` + `backend/entrypoint.sh`: add non-root user (`appuser`) and `alembic upgrade head` before uvicorn start
-- [ ] **T2** — `.github/workflows/ci.yml`: Python job (postgres:16 + redis:7 services, create `quantvault_test` DB, ruff + mypy + pytest); Node job (npm ci + lint + test + build); Docker smoke (compose build)
-- [ ] **T3** — `README.md`: motivation narrative, architecture ASCII diagram, Financial Concepts Explained (MPT, VaR, Student-t simulation — NOT "GBM"), algorithm notes, setup instructions. **No screenshots yet** (deferred to Phase 8b completion)
-- [ ] Run `/review` on Phase 8a before marking complete
-- [ ] Run `/qa` on `docker compose up` flow: fresh clone → boot → all 5 services healthy → login works
+- [x] **T1** — `backend/Dockerfile` + `backend/entrypoint.sh`: add non-root user (`appuser`) and `alembic upgrade head` before uvicorn start
+- [x] **T2** — `.github/workflows/ci.yml`: Python job (postgres:16 + redis:7 services, create `quantvault_test` DB, ruff + mypy + pytest); Node job (npm ci + lint + test + build); Docker smoke (compose build)
+- [x] **T3** — `README.md`: motivation narrative, architecture ASCII diagram, Financial Concepts Explained (MPT, VaR, Student-t simulation — NOT "GBM"), algorithm notes, setup instructions. **No screenshots yet** (deferred to Phase 8b completion)
+- [x] Local verification: frontend lint/build, backend ruff/mypy/pytest, Docker Compose build smoke
+- [x] Run `/review` on Phase 8a before marking complete — Codex manual review pass, no findings (2026-06-08)
+- [x] Run `/qa` on `docker compose up` flow: fresh clone → boot → all 5 services healthy → login works — isolated compose smoke passed (2026-06-08)
 
 **QoL:** README badge row: CI status badge, Python 3.12, FastAPI, React.
 
