@@ -15,12 +15,28 @@ from typing import Annotated, Any, TypeVar
 
 import pandas as pd
 import redis.asyncio
+import requests
 import yfinance as yf
 from fastapi import Depends
 
 from app.core.redis import get_redis
 
 _logger = logging.getLogger(__name__)
+
+# Yahoo Finance blocks requests from cloud provider IPs without browser headers.
+# A shared session with a real User-Agent is passed to every yfinance call.
+_YF_SESSION = requests.Session()
+_YF_SESSION.headers.update(
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+)
 
 T = TypeVar("T")
 
@@ -113,7 +129,7 @@ class MarketDataService:
         """Sync: download OHLCV, compute daily pct returns, apply data quality."""
         download_arg: str | list[str] = tickers[0] if len(tickers) == 1 else tickers
         raw: pd.DataFrame = yf.download(
-            download_arg, period=period, progress=False, auto_adjust=True
+            download_arg, period=period, progress=False, auto_adjust=True, session=_YF_SESSION
         )
 
         if raw.empty:
@@ -146,6 +162,7 @@ class MarketDataService:
             end=(end + timedelta(days=1)).isoformat(),
             progress=False,
             auto_adjust=True,
+            session=_YF_SESSION,
         )
 
         if raw.empty:
@@ -232,7 +249,7 @@ class MarketDataService:
             return 0.04
 
     def _fetch_rfr(self) -> float:
-        raw: pd.DataFrame = yf.download("^TNX", period="5d", progress=False, auto_adjust=True)
+        raw: pd.DataFrame = yf.download("^TNX", period="5d", progress=False, auto_adjust=True, session=_YF_SESSION)
         if raw.empty:
             raise ValueError("^TNX returned empty DataFrame")
         close_col = raw["Close"]
@@ -251,7 +268,7 @@ class MarketDataService:
         )
 
     def _fetch_info(self, ticker: str) -> dict[str, Any]:
-        info: dict[str, Any] = yf.Ticker(ticker).info
+        info: dict[str, Any] = yf.Ticker(ticker, session=_YF_SESSION).info
         return {
             "ticker": ticker.upper(),
             "name": info.get("longName") or info.get("shortName"),
@@ -273,7 +290,7 @@ class MarketDataService:
         )
 
     def _fetch_quote(self, ticker: str) -> dict[str, Any]:
-        raw: pd.DataFrame = yf.download(ticker, period="2d", progress=False, auto_adjust=True)
+        raw: pd.DataFrame = yf.download(ticker, period="2d", progress=False, auto_adjust=True, session=_YF_SESSION)
         if raw.empty:
             raise ValueError(f"No quote data for {ticker}")
         prices = raw["Close"]
@@ -299,7 +316,7 @@ class MarketDataService:
 
     def _fetch_search(self, query: str) -> list[dict[str, Any]]:
         try:
-            search = yf.Search(query, max_results=self._SEARCH_MAX_RESULTS)
+            search = yf.Search(query, max_results=self._SEARCH_MAX_RESULTS, session=_YF_SESSION)
             results: list[dict[str, Any]] = []
             for item in search.quotes or []:
                 results.append(
@@ -321,7 +338,7 @@ class MarketDataService:
         def _check(ticker: str) -> bool:
             try:
                 raw: pd.DataFrame = yf.download(
-                    ticker, period="5d", progress=False, auto_adjust=True
+                    ticker, period="5d", progress=False, auto_adjust=True, session=_YF_SESSION
                 )
                 return not raw.empty
             except Exception:
