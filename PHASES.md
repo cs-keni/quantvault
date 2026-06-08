@@ -515,13 +515,28 @@
 | 61 | Fixed 220px sidebar nav, icon + label | Robinhood-style; separates nav from content for data-dense pages |
 | 62 | AppShell wraps only authenticated routes (login/register stay full-screen) | Auth pages are standalone; sidebar irrelevant pre-auth |
 | 63 | AppShell sidebar portfolio state from `useParams()` not global Zustand | Route is source of truth; deep links (/portfolios/:id/analysis) derive sidebar from URL |
-| 64 | Mobile: hamburger menu → overlay drawer at <768px | 220px sidebar crushes mobile; overlay drawer is standard responsive pattern |
+| 64 | Responsive: collapse to 64px icon-only at <1024px; hamburger overlay drawer at <768px | Full sidebar at 1024px+ crushes chart pages on 13" laptops; icon-only restores ~900px chart width |
 | 65 | framer-motion added (alongside tw-animate-css) | Spring physics, AnimatePresence, layout animations — required for Robinhood-caliber feel |
-| 66 | `useReducedMotion()` guard on all framer-motion animations | `prefers-reduced-motion: reduce` accessibility requirement |
+| 66 | `useReducedMotion()` guard: when `prefers-reduced-motion: reduce`, all motion.div variants get `transition: { duration: 0 }` | Instant state change (no animation) is the correct reduced-motion fallback — not removing components |
 | 67 | Recharts kept, custom tooltip/gradient components | No migration cost; 90% visual gap solved by custom components + dark theme |
 | 68 | `frontend/src/components/` shared: MetricCard, PeriodToggle, SkeletonCard, PageHeader | 3 separate MetricCard implementations → single source |
 | 69 | Backend `entrypoint.sh`: `alembic upgrade head && uvicorn` | Fresh `docker compose up` previously booted with no schema |
 | 70 | Backend Dockerfile: non-root user (`appuser`) | Security best practice; Docker layer before CMD |
+
+### Design Decisions (Phase 8b, locked 2026-06-07 via /plan-design-review)
+
+| # | Decision | Rationale |
+|---|---|---|
+| 71 | Sidebar nav items (always visible): Dashboard, Portfolios, Analysis, Monte Carlo, Backtest, Compare + portfolio selector dropdown at top | All-items-always-visible (Robinhood pattern); portfolio picker IS a nav control — selecting a portfolio navigates to `/:activePage/portfolios/:newId/...`; route still carries portfolio ID |
+| 72 | Empty portfolio selector: show "+ Add portfolio" placeholder → `/portfolios/new` | Prevents empty sidebar on first login; zero-portfolio state is a feature, not an afterthought |
+| 73 | Dark color palette (warm charcoal, Robinhood style): `bg: #111111`, `surface: #1a1a1a`, `sidebar: #161616`, `border: #2a2a2a`, `muted: #888888`, `ink-dark: #f0f0f0` | Pure neutral-gray darks; no blue tint; matches Robinhood/Stripe aesthetic; avoids Tailwind slate-900 "template look" |
+| 74 | Chart color palette: portfolio line `#818cf8` (indigo-400), benchmark `#6b7280` (gray-500), percentile bands `#818cf8` at 10-30% opacity, histogram bars `#818cf8`, positive `#34d399` (emerald-400) | Indigo-led with semantic colors; lighter than accent for readability on dark bg; positive/negative reuse existing semantic tokens |
+| 75 | Route transitions: fade only, 150ms ease-out (opacity 0→1); no slide | Subtlest option; Bloomberg Terminal feel — content changes, layout doesn't move; prevents motion sickness on data-dense chart pages |
+| 76 | Card entrance animation: stagger 40ms between cards, translate Y-8px→0 + opacity 0→1, 300ms ease-out | 6 cards × 40ms = 240ms total stagger; intentional, not flashy; replaces Phase 7 CSS-delay implementation |
+| 77 | Metric cards: equal weight, uniform 3x2 grid | Adding per-card sizing now would delay Phase 8b; left-to-right stagger implies Sharpe→Sortino→VaR→CVaR→Beta→MaxDD reading order |
+| 78 | Accent color constraint: `#6366f1` used ONLY for interactive affordances (active sidebar item, primary CTA, focused inputs) — never as background fill | Indigo is on the AI slop color list when overused; sparse usage keeps it meaningful |
+| 79 | Custom Recharts tooltip: `bg: #1e1e1e`, `border: 1px solid #2a2a2a`, value in `#f0f0f0`, label in `#888888`, no shadow, no border-radius | Sharp-edge tooltip; Bloomberg-style; matches warm charcoal palette |
+| 80 | Login/Register pages: convert to dark mode tokens in T9 (not excluded from dark mode overhaul) | Dark-mode-first means ALL pages; light login → dark dashboard is a jarring color jump on first use |
 
 ---
 
@@ -539,17 +554,17 @@
 
 ### Phase 8b — UI Overhaul
 
-- [ ] **T4** — `frontend/src/index.css`: dark mode CSS variables (`@custom-variant dark`, dark color token block); `frontend/index.html`: FOUC prevention inline script
-- [ ] **T5** — `frontend/src/store/themeStore.ts`: Zustand store — toggle, `localStorage` key `qv-theme`, default `dark`
-- [ ] **T6** — `frontend/src/components/`: `MetricCard.tsx` (animated counter, tone, N/A), `PeriodToggle.tsx`, `SkeletonCard.tsx`, `PageHeader.tsx` + unit tests for each
+- [ ] **T4** — `frontend/src/index.css`: add `@custom-variant dark` + dark token block: `--color-bg: #111111`, `--color-surface: #1a1a1a`, `--color-sidebar: #161616`, `--color-border: #2a2a2a`, `--color-muted: #888888`, `--color-ink: #f0f0f0` (dark); `frontend/index.html`: FOUC prevention inline script (`localStorage['qv-theme']` → `document.documentElement.dataset.theme` before React hydrates)
+- [ ] **T5** — `frontend/src/store/themeStore.ts`: Zustand store — toggle, `localStorage` key `qv-theme`, default `'dark'`
+- [ ] **T6** — `frontend/src/components/`: `MetricCard.tsx` (animated counter, tone, N/A fallback), `PeriodToggle.tsx`, `SkeletonCard.tsx`, `PageHeader.tsx` + unit tests for each
 - [ ] **T7** — `frontend/src/App.tsx`: convert all 8 page imports to `React.lazy()` + `<Suspense fallback={<PageSkeleton />}>`
-- [ ] **T8** — `frontend/src/components/AppShell.tsx`: 220px sidebar, route-aware active state, mobile hamburger drawer, dark mode toggle button, sign out; unit tests (nav items, active state, collapse)
-- [ ] **T9** — All 8 pages: dark mode token conversion (all `bg-white` → `bg-surface`, hardcoded chart colors → semantic), visual redesign with framer-motion entrance animations
-- [ ] **T10** — Chart pages (Dashboard, Analysis, Monte Carlo, Backtest): custom Recharts `<Tooltip>` components, gradient `<Area>` fills, dark palette, themed axis labels
-- [ ] **T11** — framer-motion integration: `AnimatePresence` route transitions in `App.tsx`, staggered card entrances via `motion.div`, `useReducedMotion()` guard in all animation components
+- [ ] **T8** — `frontend/src/components/AppShell.tsx`: 220px sidebar at ≥1024px; 64px icon-only (tooltips on hover) at <1024px; hamburger overlay drawer at <768px; portfolio selector dropdown at sidebar top (shows "+ Add portfolio" when empty, navigates to `/portfolios/new`); 6 nav items always visible (Dashboard, Portfolios, Analysis, Monte Carlo, Backtest, Compare); active item: indigo left border + subtle indigo bg tint; dark mode toggle (moon/sun); sign out; unit tests (nav items, active state, icon-only collapse, drawer)
+- [ ] **T9** — All 8 pages: dark mode token conversion (`bg-white` → `bg-bg`, `bg-gray-*` → `bg-surface`/`bg-sidebar`/`bg-border`, hardcoded chart colors → chart palette tokens); Login/Register also converted (dark login page — no jarring light→dark jump); framer-motion card entrance animations (stagger 40ms, translate Y-8px→0 + opacity 0→1, 300ms ease-out, `useReducedMotion()` → `duration: 0`)
+- [ ] **T10** — Chart pages (Dashboard, Analysis, Monte Carlo, Backtest): custom `<ChartTooltip>` component (`bg: #1e1e1e`, `border: 1px solid #2a2a2a`, value `#f0f0f0`, label `#888888`, no shadow, no border-radius); portfolio line `#818cf8`, benchmark `#6b7280`, percentile bands `#818cf8` at 10-30% opacity, histogram bars `#818cf8`, positive `#34d399`; gradient `<Area>` fill with `linearGradient` from `#818cf8` at 20% → transparent; axis labels in `--color-muted`
+- [ ] **T11** — framer-motion integration: `AnimatePresence` route transitions in `App.tsx` (fade only, 150ms ease-out); staggered `motion.div` card entrances (see T9 spec); `useReducedMotion()` guard in every animation component → `transition: { duration: 0 }`; icon-only sidebar collapse animation (width 220px→64px, spring stiffness 300 damping 30)
 - [ ] **T12** — `README.md`: add screenshots with demo data (VTI 60% / BND 30% / VXUS 10%) after visual redesign is complete
 - [ ] Run `/review` on Phase 8b before marking complete
-- [ ] Run `/qa` — full Standard tier pass: dark mode, sidebar nav, mobile drawer, all 7 pages, chart theming, framer-motion animations
+- [ ] Run `/qa` — full Standard tier pass: dark mode, sidebar nav (all 3 breakpoints), mobile drawer, all 8 pages, chart theming, framer-motion animations, indigo accent constraint
 
 **QoL:** GitHub repo social preview image (Open Graph). themeStore persists across sessions. Sidebar collapse animation on mobile.
 
@@ -565,6 +580,8 @@
 - `uvicorn --workers 4` or gunicorn for multi-worker production (relevant at deployment time)
 - Full accessibility audit: ARIA labels, focus rings, keyboard nav (beyond `prefers-reduced-motion`)
 - Recharts component-level lazy loading (Dashboard still loads Recharts on first auth; acceptable for now)
+- Create `DESIGN.md` — design system decisions are currently scattered across PHASES.md; a dedicated DESIGN.md would make tokens, component specs, and chart palette discoverable for future contributors
+- Equal-weight metric cards now; consider giving Sharpe Ratio hero treatment (wider card, larger number) in Phase 9 polish
 
 ---
 
@@ -608,4 +625,20 @@
 | 4 | `/plan-eng-review` | Before starting Phase 4 (optimization is math-heavy) |
 | 6 | `/review` | Before marking Phase 6 complete |
 | 7 | `/qa` | After frontend is feature-complete |
-| 8 | `/review` + `/qa` | Final state before shipping |
+| 8a | `/review` + `/qa` | Before marking Phase 8a complete |
+| 8b | `/plan-design-review` | Done (2026-06-07) — design decisions 71–80 locked |
+| 8b | `/review` + `/qa` | Before marking Phase 8b complete |
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR (PLAN) | 14 decisions locked, 0 unresolved |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR (PLAN) | score: 5/10 → 9/10, 10 decisions added |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+**UNRESOLVED:** 0 decisions unresolved
+
+**VERDICT:** ENG + DESIGN CLEARED — Phase 8b ready to implement. Phase 8a Eng Review is from Phase 8 planning (covers infra decisions); Design Review covers Phase 8b UI overhaul decisions 71–80.

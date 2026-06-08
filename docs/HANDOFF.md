@@ -5,6 +5,49 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-07 (Phase 8b design locked; Phase 8a Infra is next to implement)
+
+`/plan-design-review` complete. Phase 8b visual spec is fully locked — 10 decisions added to PHASES.md (decisions 71–80). Phase 8a (Infra: Dockerfile, CI, README) must ship first (Decision 56). After 8a, implement Phase 8b tasks T4–T12 in order.
+
+**Dark mode color tokens (write these into `frontend/src/index.css` in T4):**
+```css
+/* dark mode — warm charcoal (Robinhood style) */
+--color-bg: #111111;
+--color-surface: #1a1a1a;
+--color-sidebar: #161616;
+--color-border: #2a2a2a;
+--color-muted: #888888;
+--color-ink: #f0f0f0;   /* overrides light-mode #0f172a in dark context */
+```
+Use `@custom-variant dark` (Tailwind v4). FOUC prevention: inline script in `index.html` reads `localStorage['qv-theme']` and sets `document.documentElement.dataset.theme` before React hydrates (Zustand fires too late — `dark-mode-fouc-zustand` learning, confidence 9/10).
+
+**Chart color palette (T10):**
+- Portfolio line: `#818cf8` (indigo-400 — lighter for dark-bg readability)
+- Benchmark: `#6b7280` (gray-500)
+- Percentile bands: `#818cf8` at 10–30% opacity
+- Histogram bars: `#818cf8`
+- Positive: `#34d399` (emerald-400)
+- Custom tooltip: `bg:#1e1e1e`, `border: 1px solid #2a2a2a`, value `#f0f0f0`, label `#888888`, no shadow, no border-radius
+
+**AppShell sidebar (T8):**
+- 220px full at ≥1024px
+- 64px icon-only (labels as hover tooltips) at <1024px; sidebar collapse uses framer-motion spring (stiffness 300, damping 30)
+- Hamburger overlay drawer at <768px
+- 6 nav items always visible: Dashboard, Portfolios, Analysis, Monte Carlo, Backtest, Compare
+- Portfolio selector dropdown at sidebar top; empty state shows "+ Add portfolio" → `/portfolios/new`
+- Active item: indigo left border + subtle indigo bg tint; accent (`#6366f1`) used for interactive affordances ONLY — never as background fill
+
+**Animation specs (T11):**
+- Route transitions: `AnimatePresence` + fade only, `opacity 0→1, duration: 150ms, ease: 'easeOut'`
+- Card entrance: stagger 40ms per card, `y: 8→0, opacity: 0→1, duration: 300ms, ease: 'easeOut'`
+- Reduced motion guard: when `useReducedMotion()` returns true, set `transition: { duration: 0 }` on all motion.div variants — instant, no removal
+
+**Login/Register (T9):** Include dark-mode token conversion — do NOT leave auth pages light-mode (jarring color jump on first login).
+
+**NOT in scope for Phase 8b:** Per-card metric sizing (equal-weight 3×2 grid confirmed), DESIGN.md creation (deferred TODO).
+
+---
+
 ## State as of 2026-06-07 (Phase 7 — Frontend complete ✅; Phase 8 is next)
 
 Phase 7 is fully complete. `/qa` Standard tier passed with 2 bugs found and fixed. Phase 8 (Polish, CI, README) is the next active phase.

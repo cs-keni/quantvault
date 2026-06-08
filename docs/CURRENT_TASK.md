@@ -6,7 +6,9 @@
 - ISSUE-001 (HIGH): Backend `_compute_metrics()` returning 500 instead of 503 on Yahoo Finance rate-limit → fixed in `ccca4c7`
 - ISSUE-002 (MEDIUM): `ComparePage` premature metrics queries + table render when < 2 portfolios selected → fixed in `0059387`
 
-**Next:** Phase 8a — Infra (Docker entrypoint, GitHub Actions CI, README)
+**Phase 8b design locked** ✅ (2026-06-07) — `/plan-design-review` complete, decisions 71–80 in PHASES.md. All visual specs ready for implementation.
+
+**Next:** Phase 8a — Infra (Docker entrypoint, GitHub Actions CI, README). Phase 8a ships before 8b (Decision 56). After 8a passes `/review` + `/qa`, implement Phase 8b T4–T12 using the locked design spec in HANDOFF.md.
 
 ---
 

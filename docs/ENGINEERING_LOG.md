@@ -3,6 +3,26 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-07 — /plan-design-review Phase 8b: Design decisions locked
+
+Ran full 7-pass design review on Phase 8b UI overhaul. 10 new design decisions added to PHASES.md (decisions 71–80). Score lifted from 5/10 → 9/10.
+
+**Key decisions:**
+- **Dark palette (warm charcoal, Robinhood style):** `bg:#111111`, `surface:#1a1a1a`, `sidebar:#161616`, `border:#2a2a2a`, `muted:#888888`, `ink-dark:#f0f0f0` — no blue tint; avoids Tailwind slate-900 "template look"
+- **Chart palette (indigo-led):** portfolio line `#818cf8` (indigo-400, lighter for dark-bg readability), benchmark `#6b7280`, percentile bands `#818cf8` at 10-30% opacity, histogram bars `#818cf8`, positive `#34d399` (emerald-400)
+- **Sidebar nav taxonomy:** All 6 items always visible (Dashboard, Portfolios, Analysis, Monte Carlo, Backtest, Compare); portfolio selector dropdown at sidebar top; empty state → "+ Add portfolio" → `/portfolios/new`
+- **Responsive breakpoints:** 220px sidebar at ≥1024px → 64px icon-only with tooltips at <1024px → hamburger overlay drawer at <768px
+- **Route transitions:** Fade-only, 150ms ease-out (no slide — prevents motion sickness on data-dense chart pages)
+- **Card entrance animation:** Stagger 40ms per card, translate Y-8px→0 + opacity 0→1, 300ms ease-out; replaces Phase 7 CSS-delay implementation
+- **Reduced-motion fallback:** `transition: { duration: 0 }` on all motion.div variants (instant state change, no component removal)
+- **Indigo accent constraint:** `#6366f1` / `#818cf8` for interactive affordances ONLY (active sidebar item, primary CTA, focused inputs) — never as background fill
+- **Chart tooltip spec:** `bg:#1e1e1e`, `border: 1px solid #2a2a2a`, value `#f0f0f0`, label `#888888`, sharp edges, no shadow
+- **Login/Register:** Also converted to dark tokens (prevents jarring light→dark jump on first login)
+
+**Commit:** `92884ee`
+
+---
+
 ## 2026-06-07 — /plan-eng-review Phase 8: Architecture locked
 
 Phase 8 architecture locked via full `/plan-eng-review` + Codex outside voice.

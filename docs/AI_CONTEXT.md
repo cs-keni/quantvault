@@ -195,9 +195,30 @@ dropdown list included `BOND/CRYPTO/OTHER`, but those values do not exist in the
 backend enum and should not be submitted unless a backend enum migration adds
 them.
 
-## Design tokens (locked)
+## Design tokens (Phase 8b locked — 2026-06-07 via /plan-design-review)
 
-bg `#ffffff` · surface `#f8fafc` · accent (indigo) `#6366f1` · positive
-(emerald) `#10b981` · negative (red) `#ef4444` · text `#0f172a` · font Inter
-(JetBrains Mono for numeric displays) · charts via Recharts on a clean SVG /
-light-grid style.
+**Light mode (existing):**
+- bg `#ffffff` · surface `#f8fafc` · accent `#6366f1` · positive `#10b981` · negative `#ef4444` · ink `#0f172a`
+
+**Dark mode (warm charcoal — Robinhood style, locked):**
+- bg `#111111` · surface `#1a1a1a` · sidebar `#161616` · border `#2a2a2a` · muted `#888888` · ink `#f0f0f0`
+- Default is dark (`localStorage['qv-theme']` default `'dark'`); FOUC prevention via inline script in `index.html` before React hydrates
+- Implementation: `@custom-variant dark` in Tailwind v4 CSS
+
+**Accent constraint:** `#6366f1` / `#818cf8` (indigo-400, for dark-bg use) are for interactive affordances ONLY — active sidebar item, primary CTA, focused input rings. Never as background fills.
+
+**Chart palette (dark mode):**
+- Portfolio line: `#818cf8` · Benchmark: `#6b7280` · Positive: `#34d399`
+- Percentile/band fills: `#818cf8` at 10–30% opacity · Histogram bars: `#818cf8`
+- Custom tooltip: `bg:#1e1e1e`, `border: 1px solid #2a2a2a`, value `#f0f0f0`, label `#888888`, no shadow, no border-radius
+
+**Fonts:** Inter (body/UI) · JetBrains Mono (numeric metric displays)
+
+**AppShell breakpoints:** 220px sidebar ≥1024px → 64px icon-only <1024px → hamburger drawer <768px
+
+**Animation specs:**
+- Route transitions: fade only, 150ms ease-out (no slide)
+- Card stagger: 40ms between cards, Y-8px→0 + opacity 0→1, 300ms ease-out
+- Reduced-motion fallback: `transition: { duration: 0 }` on all motion.div variants
+
+See PHASES.md decisions 71–80 for full rationale.
