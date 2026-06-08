@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { TokenResponse, UserRead } from "../types/api";
 
 const refreshTokenKey = "refresh_token";
-const authClient = axios.create({ baseURL: "/api/v1" });
+const authClient = axios.create({ baseURL: `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1` });
 let silentRefreshPromise: Promise<string> | null = null;
 
 function getStoredRefreshToken(): string | null {

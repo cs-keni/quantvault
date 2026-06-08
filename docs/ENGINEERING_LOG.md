@@ -3,6 +3,20 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix direct URL navigation / page reload auth failure
+
+**Root cause:** `authClient` in `frontend/src/store/authStore.ts` used a hardcoded relative
+`baseURL: "/api/v1"`. On Vercel (no backend), silent refresh calls went to
+`https://quantvault-coral.vercel.app/api/v1/auth/refresh` → 404. The error triggered
+`logout()` → cleared `refresh_token` from localStorage → `ProtectedRoute` saw null access
+token → redirected to `/login`. Only affected direct URL navigation and page reloads;
+normal login flow was unaffected because it uses `apiClient` (which reads `VITE_API_BASE_URL`).
+
+**Fix:** Change `authClient` baseURL to use `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`,
+matching `apiClient`'s pattern.
+
+**File:** `frontend/src/store/authStore.ts`
+
 ## 2026-06-08 — Fix Monte Carlo + Backtest 500 in Celery eager mode
 
 **Root cause:** Both `simulation_service.py` and `backtest_service.py` had the same bug:
