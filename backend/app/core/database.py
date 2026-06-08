@@ -5,7 +5,10 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
+# asyncpg doesn't accept ssl/sslmode as URL query params via SQLAlchemy.
+# Pass ssl=True via connect_args in production so the URL stays clean.
+_connect_args = {"ssl": True} if settings.ENVIRONMENT == "production" else {}
+engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True, connect_args=_connect_args)
 
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
