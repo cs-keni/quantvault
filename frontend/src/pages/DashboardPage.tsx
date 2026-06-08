@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { Trash2 } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -59,6 +60,8 @@ function buildHistogram(returns: number[]) {
 
 export function DashboardPage() {
   const { portfolioId } = useParams();
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [period, setPeriod] = useState<Period>("1y");
@@ -116,6 +119,20 @@ export function DashboardPage() {
     setPeriod(nextPeriod);
   }
 
+  async function handleDeletePortfolio() {
+    if (!activePortfolioId || !selectedPortfolio) return;
+    if (!window.confirm(`Delete "${selectedPortfolio.name}"? This cannot be undone.`)) return;
+    setIsDeleting(true);
+    try {
+      await apiClient.delete(`/portfolios/${activePortfolioId}`);
+      await queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+      setSelectedPortfolioId(null);
+      navigate("/dashboard");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   const metrics = metricsQuery.data;
 
   return (
@@ -152,6 +169,17 @@ export function DashboardPage() {
               ))}
             </select>
 
+            {activePortfolioId ? (
+              <button
+                type="button"
+                onClick={() => void handleDeletePortfolio()}
+                disabled={isDeleting}
+                title="Delete portfolio"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-muted transition hover:border-negative/50 hover:bg-negative/10 hover:text-negative disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+              </button>
+            ) : null}
             <PeriodToggle value={period} onChange={handlePeriodChange} />
           </div>
         </div>
