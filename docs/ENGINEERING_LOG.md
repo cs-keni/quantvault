@@ -3,6 +3,22 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Deployment prep (Vercel + Render + Supabase + Upstash)
+
+Wired up the minimal code changes for a production deployment without a Celery worker.
+
+**Changed:**
+- `backend/app/core/config.py` — added `USE_CELERY: bool = True` setting. Set `USE_CELERY=false` on Render to run tasks synchronously in the request thread (no worker process needed).
+- `backend/app/celery_app.py` — when `USE_CELERY=false`, sets `task_always_eager=True` and `task_eager_propagates=False` so `.delay()` blocks synchronously. POST endpoints for heavy tasks will take 10–30s but the polling GET endpoint immediately returns SUCCESS. No separate Render worker service needed.
+- `frontend/src/services/apiClient.ts` — `baseURL` now uses `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`. Empty default keeps local dev working (Vite proxy); set `VITE_API_BASE_URL` to the Render URL in Vercel dashboard for production.
+- `frontend/vercel.json` — new file; rewrites all paths to `/index.html` so React Router works on direct URL loads.
+- `render.yaml` — new file; defines the single Render web service (backend only, no celery-worker service).
+- `.env.example` — updated with `USE_CELERY` and `VITE_API_BASE_URL` documentation.
+
+**Stack decision:** Vercel (frontend) + Render free tier (backend, single service, cold starts) + Supabase (Postgres) + Upstash (Redis — still needed for market data caching and Celery result backend in eager mode). No UptimeRobot — demo video captures the app, recruiters don't need live access.
+
+---
+
 ## 2026-06-08 — Phase 8b: UI overhaul implemented and verified
 
 Implemented and verified the locked Phase 8b UI overhaul.

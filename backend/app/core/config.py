@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Deployment: set USE_CELERY=false on Render to run tasks synchronously
+    # (no separate worker process needed). Tasks block the request thread but
+    # that's fine for a single-service demo deployment.
+    USE_CELERY: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

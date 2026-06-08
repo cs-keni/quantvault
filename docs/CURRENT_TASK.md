@@ -18,7 +18,7 @@
 - Added dark-mode tokens, FOUC prevention, persisted `qv-theme` Zustand store, responsive `AppShell`, shared components, lazy routes, framer-motion route/card/sidebar animations, chart theming, and README screenshots.
 - Verification passed: frontend lint/test/build, manual review scans, and Playwright Standard smoke across auth pages, all 8 authenticated route surfaces, chart rendering, theme toggle, and all three sidebar breakpoints.
 
-**Next:** Commit/push Phase 8b and monitor CI.
+**Next:** Deploy — set up Supabase + Upstash + Render + Vercel. Record demo video.
 
 ---
 

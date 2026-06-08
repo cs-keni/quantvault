@@ -25,3 +25,13 @@ celery_app.conf.update(
     # CPendingDeprecationWarning that fires on every worker boot.
     broker_connection_retry_on_startup=True,
 )
+
+# When USE_CELERY=false (single-service Render deployment), tasks run
+# synchronously in the request thread — no worker process needed.
+# task_eager_propagates=False lets the endpoints handle exceptions normally
+# instead of having .delay() raise immediately.
+if not settings.USE_CELERY:
+    celery_app.conf.update(
+        task_always_eager=True,
+        task_eager_propagates=False,
+    )

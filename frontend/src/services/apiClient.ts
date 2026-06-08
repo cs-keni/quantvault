@@ -5,7 +5,7 @@ import { useAuthStore } from "../store/authStore";
 type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 export const apiClient = axios.create({
-  baseURL: "/api/v1",
+  baseURL: `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`,
 });
 
 let refreshPromise: Promise<string> | null = null;
