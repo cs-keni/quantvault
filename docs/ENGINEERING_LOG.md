@@ -3,6 +3,22 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo 500 in Celery eager mode (simulation_service.py)
+
+**Root cause:** `_write_result_to_db_sync` called `asyncio.run()` directly. In Celery eager
+mode (`USE_CELERY=false`, `task_always_eager=True`), `run_simulation.delay()` executes
+synchronously inside FastAPI's async event loop. `asyncio.run()` raises
+`RuntimeError: This event loop is already running` because an event loop already exists.
+The exception bubbled up through `submit_monte_carlo_simulation` → 500 "Failed to dispatch
+simulation task".
+
+**Fix:** `_write_result_to_db_sync` now checks for a running loop with `asyncio.get_running_loop()`.
+If one exists (eager/inline mode), the coroutine is submitted to a `ThreadPoolExecutor` where
+`asyncio.run()` creates its own clean event loop. Real Celery workers (no running loop) still
+use `asyncio.run()` directly — no behavioral change for production workers.
+
+**File:** `backend/app/services/simulation_service.py`
+
 ## 2026-06-07 — Switch to Tiingo for market data on Render (commits dd6a815, 90760a9, af40eff, 2e23bde)
 
 **Root cause:** Render's free-tier shared IPs are on blocklists used by multiple financial data

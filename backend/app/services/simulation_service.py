@@ -150,9 +150,23 @@ def _write_result_to_db_sync(
     error: str | None = None,
     task_id: str | None = None,
 ) -> None:
-    # asyncio.run() is safe only with Celery's default prefork pool.
-    # Do not switch to --pool=gevent or --pool=eventlet without replacing this.
-    asyncio.run(_write_result_to_db(simulation_id, status, result, error, task_id))
+    # When called from a real Celery worker (no running loop), asyncio.run() works
+    # fine. In eager/inline mode (USE_CELERY=false), the task runs synchronously
+    # inside FastAPI's event loop, so asyncio.run() would raise
+    # "This event loop is already running". Run in a thread instead — threads
+    # never inherit the parent's event loop, so asyncio.run() always succeeds.
+    coro = _write_result_to_db(simulation_id, status, result, error, task_id)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(asyncio.run, coro).result()
+    else:
+        asyncio.run(coro)
 
 
 @celery_app.task(bind=True, soft_time_limit=55, time_limit=60)
