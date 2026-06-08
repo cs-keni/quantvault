@@ -25,6 +25,37 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/health/celery", tags=["health"])
+    async def health_celery() -> dict[str, object]:
+        """Debug: check eager mode config and test apply() call."""
+        from app.celery_app import celery_app as _ca
+        from app.services.simulation_service import run_simulation
+
+        eager = _ca.conf.task_always_eager
+        propagate = _ca.conf.task_eager_propagates
+        result: dict[str, object] = {
+            "task_always_eager": eager,
+            "task_eager_propagates": propagate,
+        }
+        try:
+            # Minimal smoke test — bad params so task fails fast, but apply() itself must not raise
+            task = run_simulation.apply(
+                args=["00000000-0000-0000-0000-000000000000",
+                      {"tickers": [], "weights": [], "period": "1y",
+                       "initial_investment": 10000, "years": 1,
+                       "n_simulations": 10, "annual_contribution": 0}]
+            )
+            result["apply_ok"] = True
+            result["task_result_type"] = type(task).__name__
+            if hasattr(task, "result"):
+                r = task.result
+                result["task_result"] = str(r)[:200] if not isinstance(r, dict) else r
+        except Exception as exc:
+            result["apply_ok"] = False
+            result["error_type"] = type(exc).__name__
+            result["error"] = str(exc)[:500]
+        return result
+
     @app.get("/health/tiingo", tags=["health"])
     async def health_tiingo() -> dict[str, object]:
         """Test Tiingo API connectivity from this server. Returns status code and row count."""
