@@ -1,11 +1,14 @@
-"""Market data service: Stooq (via pandas_datareader) for price history, Redis caching.
+"""Market data service: Stooq CSV API for price history, Redis caching.
 
 Yahoo Finance aggressively blocks requests from cloud provider IPs (Render, AWS,
 GCP) at the network level regardless of User-Agent or endpoint. Stooq is a
 Polish financial data provider that is not IP-restricted and provides equivalent
-OHLCV history for US equities and ETFs. yfinance is kept only for company
-metadata (ticker info) and search, which use different Yahoo Finance endpoints
-that are less restricted.
+OHLCV history for US equities and ETFs via a simple CSV download endpoint.
+yfinance is kept only for company metadata (ticker info) and search, which use
+different Yahoo Finance endpoints that are less restricted.
+
+Stooq API: https://stooq.com/q/d/l/?s={symbol}&d1=YYYYMMDD&d2=YYYYMMDD&i=d
+Returns CSV with columns: Date, Open, High, Low, Close, Volume
 """
 
 import asyncio
@@ -17,7 +20,6 @@ from datetime import date, timedelta
 from typing import Annotated, Any, TypeVar
 
 import pandas as pd
-import pandas_datareader.data as pdr
 import redis.asyncio
 import requests
 import yfinance as yf
@@ -42,6 +44,8 @@ _YF_SESSION.headers.update(
     }
 )
 
+_STOOQ_URL = "https://stooq.com/q/d/l/"
+
 _PERIOD_DELTAS: dict[str, timedelta] = {
     "1mo": timedelta(days=35),
     "6mo": timedelta(days=186),
@@ -62,6 +66,21 @@ def _period_to_dates(period: str) -> tuple[date, date]:
     delta = _PERIOD_DELTAS.get(period, timedelta(days=370))
     today = date.today()
     return today - delta, today
+
+
+def _fetch_stooq_csv(symbol: str, start: date, end: date) -> pd.DataFrame:
+    """Fetch OHLCV CSV from Stooq's download endpoint. Returns empty DataFrame on failure."""
+    params = {
+        "s": symbol,
+        "d1": start.strftime("%Y%m%d"),
+        "d2": end.strftime("%Y%m%d"),
+        "i": "d",
+    }
+    resp = requests.get(_STOOQ_URL, params=params, timeout=15)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.text), parse_dates=["Date"], index_col="Date")
+    df = df.sort_index()
+    return df
 
 
 class MarketDataService:
@@ -149,16 +168,10 @@ class MarketDataService:
     def _stooq_close(self, ticker: str, start: date, end: date) -> pd.Series | None:
         """Fetch Close price series for one ticker from Stooq. Returns None on failure."""
         try:
-            raw: pd.DataFrame = pdr.DataReader(_to_stooq(ticker), "stooq", start, end)
-            raw = raw.sort_index()  # Stooq returns descending order
+            raw = _fetch_stooq_csv(_to_stooq(ticker), start, end)
             if raw.empty or "Close" not in raw.columns:
                 _logger.warning("Empty Stooq data for ticker=%s", ticker)
                 return None
-            # Strip timezone so all series align on a plain DatetimeIndex
-            idx = raw.index
-            if hasattr(idx, "tz") and idx.tz is not None:
-                idx = idx.tz_localize(None)
-                raw.index = idx
             return raw["Close"]
         except Exception as exc:
             _logger.warning("Stooq fetch failed ticker=%s: %s", ticker, exc)
@@ -282,8 +295,7 @@ class MarketDataService:
         # Stooq 10-year US Treasury yield
         try:
             start, end = _period_to_dates("1mo")
-            raw = pdr.DataReader("10usy.b", "stooq", start, end)
-            raw = raw.sort_index()
+            raw = _fetch_stooq_csv("10usy.b", start, end)
             if not raw.empty and "Close" in raw.columns:
                 return float(raw["Close"].iloc[-1]) / 100
         except Exception as exc:
@@ -382,7 +394,7 @@ class MarketDataService:
 
         def _check(ticker: str) -> bool:
             try:
-                raw = pdr.DataReader(_to_stooq(ticker), "stooq", start, end)
+                raw = _fetch_stooq_csv(_to_stooq(ticker), start, end)
                 return not raw.empty
             except Exception:
                 return False
