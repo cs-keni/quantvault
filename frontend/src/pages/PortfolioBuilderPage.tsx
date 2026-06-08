@@ -46,7 +46,7 @@ function toHoldingPayload(holding: HoldingDraft) {
     asset_name: holding.asset_name.trim(),
     asset_class: holding.asset_class,
     target_weight: (Number(holding.target_weight_percent) / 100).toFixed(5),
-    current_shares: currentShares === "" ? null : currentShares,
+    current_shares: currentShares === "" || Number(currentShares) <= 0 ? null : currentShares,
     notes: notes === "" ? null : notes,
   };
 }
