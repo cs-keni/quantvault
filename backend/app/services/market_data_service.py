@@ -1,8 +1,11 @@
-"""Market data service: yfinance fetches with Redis caching.
+"""Market data service: Stooq (via pandas_datareader) for price history, Redis caching.
 
-All yfinance calls are sync and blocking; they are wrapped in
-`asyncio.wait_for(asyncio.to_thread(...), timeout=self._FETCH_TIMEOUT)` so they never
-block the event loop. Cache failures degrade speed, never correctness.
+Yahoo Finance aggressively blocks requests from cloud provider IPs (Render, AWS,
+GCP) at the network level regardless of User-Agent or endpoint. Stooq is a
+Polish financial data provider that is not IP-restricted and provides equivalent
+OHLCV history for US equities and ETFs. yfinance is kept only for company
+metadata (ticker info) and search, which use different Yahoo Finance endpoints
+that are less restricted.
 """
 
 import asyncio
@@ -14,6 +17,7 @@ from datetime import date, timedelta
 from typing import Annotated, Any, TypeVar
 
 import pandas as pd
+import pandas_datareader.data as pdr
 import redis.asyncio
 import requests
 import yfinance as yf
@@ -23,8 +27,8 @@ from app.core.redis import get_redis
 
 _logger = logging.getLogger(__name__)
 
-# Yahoo Finance blocks requests from cloud provider IPs without browser headers.
-# A shared session with a real User-Agent is passed to every yfinance call.
+# Used only for yfinance ticker info / search — metadata endpoints that are
+# less IP-restricted than the price history endpoints.
 _YF_SESSION = requests.Session()
 _YF_SESSION.headers.update(
     {
@@ -38,12 +42,33 @@ _YF_SESSION.headers.update(
     }
 )
 
+_PERIOD_DELTAS: dict[str, timedelta] = {
+    "1mo": timedelta(days=35),
+    "6mo": timedelta(days=186),
+    "1y": timedelta(days=370),
+    "2y": timedelta(days=740),
+    "max": timedelta(days=3653),
+}
+
 T = TypeVar("T")
 
 
-class MarketDataService:
-    """Fetch and cache market data from Yahoo Finance.
+def _to_stooq(ticker: str) -> str:
+    """Convert a standard US ticker symbol to Stooq's format (append .US)."""
+    return f"{ticker.upper()}.US"
 
+
+def _period_to_dates(period: str) -> tuple[date, date]:
+    delta = _PERIOD_DELTAS.get(period, timedelta(days=370))
+    today = date.today()
+    return today - delta, today
+
+
+class MarketDataService:
+    """Fetch and cache market data.
+
+    Price history: Stooq via pandas_datareader (not IP-blocked on cloud).
+    Metadata / search: yfinance (different Yahoo Finance endpoints).
     Cache key namespace: ``qv:mds:`` — avoids Celery's ``celery-task-meta-*``
     keys sharing Redis DB 0 (architecture decision #23).
     """
@@ -53,7 +78,7 @@ class MarketDataService:
     _INFO_TTL = 604_800  # 7 d
     _QUOTE_TTL = 900  # 15 min
     _MAX_GAP = 5  # max consecutive NaN days before a ticker is dropped
-    _FETCH_TIMEOUT = 30.0  # seconds — caps blocking yfinance calls in asyncio.to_thread
+    _FETCH_TIMEOUT = 30.0  # seconds — caps blocking calls in asyncio.to_thread
     _VALIDATE_TIMEOUT = 15.0  # shorter per-ticker timeout for batch validation
     _SEARCH_MAX_RESULTS = 10
 
@@ -108,8 +133,6 @@ class MarketDataService:
                 continue
             col = returns[ticker]
             is_nan = col.isna()
-            # cumsum of non-NaN flags assigns a group ID per consecutive-NaN run;
-            # .sum().max() gives the length of the longest run.
             max_gap = int(is_nan.groupby((~is_nan).cumsum()).sum().max()) if is_nan.any() else 0
 
             if max_gap > self._MAX_GAP:
@@ -123,26 +146,34 @@ class MarketDataService:
         result: pd.DataFrame = returns[valid_cols].ffill().dropna(how="all")
         return result, dropped
 
+    def _stooq_close(self, ticker: str, start: date, end: date) -> pd.Series | None:
+        """Fetch Close price series for one ticker from Stooq. Returns None on failure."""
+        try:
+            raw: pd.DataFrame = pdr.DataReader(_to_stooq(ticker), "stooq", start, end)
+            raw = raw.sort_index()  # Stooq returns descending order
+            if raw.empty or "Close" not in raw.columns:
+                _logger.warning("Empty Stooq data for ticker=%s", ticker)
+                return None
+            # Strip timezone so all series align on a plain DatetimeIndex
+            idx = raw.index
+            if hasattr(idx, "tz") and idx.tz is not None:
+                idx = idx.tz_localize(None)
+                raw.index = idx
+            return raw["Close"]
+        except Exception as exc:
+            _logger.warning("Stooq fetch failed ticker=%s: %s", ticker, exc)
+            return None
+
     def _fetch_and_process_returns(
         self, tickers: list[str], period: str
     ) -> tuple[pd.DataFrame, list[str]]:
-        """Sync: fetch OHLCV per-ticker via Ticker.history(), compute daily pct returns.
-
-        Uses Ticker.history() instead of yf.download() because download() is
-        more aggressively blocked by Yahoo Finance on cloud provider IPs.
-        """
+        """Sync: fetch Close prices from Stooq per ticker, compute daily pct returns."""
+        start, end = _period_to_dates(period)
         frames: dict[str, pd.Series] = {}
         for ticker in tickers:
-            try:
-                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(
-                    period=period, auto_adjust=True
-                )
-                if not hist.empty:
-                    frames[ticker] = hist["Close"]
-                else:
-                    _logger.warning("Empty history for ticker=%s period=%s", ticker, period)
-            except Exception as exc:
-                _logger.warning("Failed to fetch ticker=%s: %s", ticker, exc)
+            series = self._stooq_close(ticker, start, end)
+            if series is not None:
+                frames[ticker] = series
 
         if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
@@ -157,31 +188,17 @@ class MarketDataService:
         start: date,
         end: date,
     ) -> tuple[pd.DataFrame, list[str]]:
-        """Sync: download date-bounded OHLCV, compute returns, apply data quality.
-
-        Yahoo Finance's `end` parameter is exclusive, so this method always
-        requests through `end + 1 calendar day` to include the user's requested
-        final trading day when it exists.
-        """
+        """Sync: fetch date-bounded Close prices from Stooq, compute returns."""
         frames: dict[str, pd.Series] = {}
-        end_exclusive = (end + timedelta(days=1)).isoformat()
         for ticker in tickers:
-            try:
-                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(
-                    start=start.isoformat(), end=end_exclusive, auto_adjust=True
-                )
-                if not hist.empty:
-                    frames[ticker] = hist["Close"]
-                else:
-                    _logger.warning("Empty history for ticker=%s start=%s end=%s", ticker, start, end)
-            except Exception as exc:
-                _logger.warning("Failed to fetch ticker=%s: %s", ticker, exc)
+            series = self._stooq_close(ticker, start, end)
+            if series is not None:
+                frames[ticker] = series
 
         if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
 
         close: pd.DataFrame = pd.DataFrame(frames)
-
         returns: pd.DataFrame = close.pct_change().iloc[1:]
         return self._apply_data_quality(returns, tickers)
 
@@ -207,7 +224,6 @@ class MarketDataService:
         sorted_tickers = sorted(tickers)
         key = f"qv:mds:returns:{','.join(sorted_tickers)}:{period}"
 
-        # --- try cache ---
         try:
             cached = await self._redis.get(key)
             if cached is not None:
@@ -216,7 +232,6 @@ class MarketDataService:
         except (redis.RedisError, json.JSONDecodeError, ValueError, UnicodeDecodeError) as exc:
             _logger.warning("cache read failed key=%s: %s", key, exc)
 
-        # --- fetch live ---
         df, dropped = await asyncio.wait_for(
             asyncio.to_thread(self._fetch_and_process_returns, sorted_tickers, period),
             timeout=self._FETCH_TIMEOUT,
@@ -226,7 +241,6 @@ class MarketDataService:
             _logger.warning("no valid historical data for tickers=%s period=%s", tickers, period)
             raise ValueError("No valid historical data for the requested ticker(s).")
 
-        # --- cache only complete results ---
         if not dropped:
             try:
                 serial = df.to_json(orient="split", date_format="iso")
@@ -238,12 +252,11 @@ class MarketDataService:
         return df[surviving], dropped
 
     async def get_risk_free_rate(self) -> float:
-        """Fetch the annualized risk-free rate from ^TNX (10-year Treasury yield).
+        """Fetch the annualized risk-free rate.
 
-        Yahoo Finance quotes ^TNX as a percentage (e.g. 4.21 = 4.21% yield).
-        Divide by 100 to get a decimal rate (0.0421). Falls back to 0.04 on
-        any fetch or conversion failure. Decision #25: this is `/ 100`, NOT
-        `/ 10` — the "divide by 10" note in original docs was wrong.
+        Tries yfinance ^TNX first (10-year Treasury yield, % / 100), then
+        falls back to a hardcoded approximate current rate. Decision #25:
+        divide by 100, NOT by 10.
         """
         try:
             return await self._cache_through(
@@ -254,14 +267,29 @@ class MarketDataService:
                 deserialize=float,
             )
         except Exception as exc:
-            _logger.warning("get_risk_free_rate failed, using 0.04 fallback: %s", exc)
-            return 0.04
+            _logger.warning("get_risk_free_rate failed, using fallback: %s", exc)
+            return 0.043
 
     def _fetch_rfr(self) -> float:
-        hist: pd.DataFrame = yf.Ticker("^TNX", session=_YF_SESSION).history(period="5d", auto_adjust=True)
-        if hist.empty:
-            raise ValueError("^TNX returned empty DataFrame")
-        return float(hist["Close"].iloc[-1]) / 100
+        # Try yfinance first (different endpoint, sometimes less blocked)
+        try:
+            hist = yf.Ticker("^TNX", session=_YF_SESSION).history(period="5d", auto_adjust=True)
+            if not hist.empty:
+                return float(hist["Close"].iloc[-1]) / 100
+        except Exception as exc:
+            _logger.warning("yfinance rfr failed, trying Stooq: %s", exc)
+
+        # Stooq 10-year US Treasury yield
+        try:
+            start, end = _period_to_dates("1mo")
+            raw = pdr.DataReader("10usy.b", "stooq", start, end)
+            raw = raw.sort_index()
+            if not raw.empty and "Close" in raw.columns:
+                return float(raw["Close"].iloc[-1]) / 100
+        except Exception as exc:
+            _logger.warning("Stooq rfr failed, using hardcoded fallback: %s", exc)
+
+        return 0.043  # approximate current 10-year yield
 
     async def get_ticker_info(self, ticker: str) -> dict[str, Any]:
         """Fetch company metadata (name, sector, industry, market cap, currency, exchange)."""
@@ -274,16 +302,28 @@ class MarketDataService:
         )
 
     def _fetch_info(self, ticker: str) -> dict[str, Any]:
-        info: dict[str, Any] = yf.Ticker(ticker, session=_YF_SESSION).info
-        return {
-            "ticker": ticker.upper(),
-            "name": info.get("longName") or info.get("shortName"),
-            "sector": info.get("sector"),
-            "industry": info.get("industry"),
-            "market_cap": info.get("marketCap"),
-            "currency": info.get("currency"),
-            "exchange": info.get("exchange"),
-        }
+        try:
+            info: dict[str, Any] = yf.Ticker(ticker, session=_YF_SESSION).info
+            return {
+                "ticker": ticker.upper(),
+                "name": info.get("longName") or info.get("shortName"),
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+                "market_cap": info.get("marketCap"),
+                "currency": info.get("currency"),
+                "exchange": info.get("exchange"),
+            }
+        except Exception as exc:
+            _logger.warning("yfinance info failed for %s: %s", ticker, exc)
+            return {
+                "ticker": ticker.upper(),
+                "name": None,
+                "sector": None,
+                "industry": None,
+                "market_cap": None,
+                "currency": "USD",
+                "exchange": None,
+            }
 
     async def get_quote(self, ticker: str) -> dict[str, Any]:
         """Fetch the most recent closing price and day-over-day change."""
@@ -296,12 +336,12 @@ class MarketDataService:
         )
 
     def _fetch_quote(self, ticker: str) -> dict[str, Any]:
-        hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(period="2d", auto_adjust=True)
-        if hist.empty:
+        start, end = _period_to_dates("1mo")
+        series = self._stooq_close(ticker, start, end)
+        if series is None or series.empty:
             raise ValueError(f"No quote data for {ticker}")
-        prices = hist["Close"]
-        last = float(prices.iloc[-1])
-        prev = float(prices.iloc[-2]) if len(prices) >= 2 else last
+        last = float(series.iloc[-1])
+        prev = float(series.iloc[-2]) if len(series) >= 2 else last
         change = last - prev
         change_pct = (change / prev * 100) if prev != 0.0 else 0.0
         return {
@@ -337,12 +377,13 @@ class MarketDataService:
             return []
 
     async def validate_tickers(self, tickers: list[str]) -> tuple[list[str], list[str]]:
-        """Check which tickers return data from Yahoo Finance."""
+        """Check which tickers return data from Stooq."""
+        start, end = _period_to_dates("1mo")
 
         def _check(ticker: str) -> bool:
             try:
-                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(period="5d", auto_adjust=True)
-                return not hist.empty
+                raw = pdr.DataReader(_to_stooq(ticker), "stooq", start, end)
+                return not raw.empty
             except Exception:
                 return False
 
