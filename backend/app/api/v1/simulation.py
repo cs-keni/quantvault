@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.celery_app import celery_app
 from app.core.database import get_db
 from app.dependencies import CurrentUser
 from app.models.simulation_result import SimulationResult, SimulationStatus
@@ -61,7 +62,11 @@ async def submit_monte_carlo_simulation(
 
     params = payload.model_dump(mode="json", exclude={"portfolio_id"})
     try:
-        task = run_simulation.delay(str(simulation.id), params)
+        if celery_app.conf.task_always_eager:
+            # apply() skips the Kombu producer pool (no broker connection needed)
+            task = run_simulation.apply(args=[str(simulation.id), params])
+        else:
+            task = run_simulation.delay(str(simulation.id), params)
     except Exception as exc:
         _logger.exception("failed to dispatch simulation task simulation_id=%s", simulation.id)
         raise HTTPException(

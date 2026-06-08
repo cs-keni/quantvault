@@ -3,6 +3,28 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo + Backtest: bypass Kombu broker in eager mode
+
+**Root cause (definitive):** `delay()` internally calls `apply_async()`, which enters a
+`with app.producer_or_acquire(producer)` context even in eager mode. This context manager
+acquires a Kombu Redis producer — connecting to the broker (Upstash TLS). On Render, the
+Kombu/TLS handshake to Upstash fails, raising before the task function even runs. The
+exception propagates to the endpoint's `except Exception` block → "Failed to dispatch
+simulation task." The `task_always_eager=True` flag short-circuits the actual Celery message
+queue, but NOT the producer acquisition step in `apply_async()`.
+
+**Fix:** Call `task.apply()` directly in eager mode. `apply()` skips `producer_or_acquire()`
+entirely — it builds the tracer directly and calls the task function in-process. No broker
+connection needed.
+
+Also removed the backtest preflight check in eager mode (the preflight is a "fail fast before
+dispatching async work" optimization; in eager mode the task runs synchronously in the same
+request, so the preflight is redundant overhead and an extra failure point).
+
+**Files:**
+- `backend/app/api/v1/simulation.py` — `run_simulation.apply()` in eager mode
+- `backend/app/api/v1/backtest.py` — `run_backtest.apply()` + skip preflight in eager mode
+
 ## 2026-06-08 — Fix Monte Carlo: eager-mode-aware task architecture (second attempt)
 
 **Root cause (new finding):** The ThreadPoolExecutor approach deployed earlier still caused

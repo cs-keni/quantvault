@@ -24,6 +24,7 @@ from app.schemas.backtest import (
 )
 from celery.result import EagerResult
 
+from app.celery_app import celery_app
 from app.services import portfolio_service
 from app.services.backtest_service import run_backtest
 from app.services.market_data_service import MarketDataService, get_market_data_service
@@ -173,7 +174,10 @@ async def submit_backtest(
 
     tickers, weights = portfolio_service.portfolio_to_weights(portfolio.holdings)
     benchmark_ticker = portfolio.benchmark_ticker.upper()
-    await _preflight_market_data(market_service, tickers, benchmark_ticker, payload)
+    # In eager mode the task runs synchronously in this request — skip the preflight
+    # (which also calls Tiingo) to avoid double-fetching and an extra failure point.
+    if not celery_app.conf.task_always_eager:
+        await _preflight_market_data(market_service, tickers, benchmark_ticker, payload)
 
     strategy_name = (
         payload.strategy_name
@@ -209,7 +213,11 @@ async def submit_backtest(
         "initial_investment": float(payload.initial_investment),
     }
     try:
-        task = run_backtest.apply_async(args=[str(backtest.id), params], task_id=task_id)
+        if celery_app.conf.task_always_eager:
+            # apply() skips the Kombu producer pool (no broker connection needed)
+            task = run_backtest.apply(args=[str(backtest.id), params], task_id=task_id)
+        else:
+            task = run_backtest.apply_async(args=[str(backtest.id), params], task_id=task_id)
     except Exception as exc:
         _logger.exception("failed to dispatch backtest task backtest_id=%s", backtest.id)
         raise HTTPException(
