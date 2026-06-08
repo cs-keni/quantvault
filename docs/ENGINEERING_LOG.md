@@ -3,6 +3,21 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Fix Monte Carlo + Backtest 500 in Celery eager mode
+
+**Root cause:** Both `simulation_service.py` and `backtest_service.py` had the same bug:
+`_write_result_to_db_sync` called `asyncio.run()` directly. In Celery eager mode
+(`USE_CELERY=false`, `task_always_eager=True`), tasks execute synchronously inside FastAPI's
+async event loop. `asyncio.run()` raises `RuntimeError: This event loop is already running`.
+The exception propagated → 500 "Failed to dispatch simulation/backtest task" on first run.
+
+**Fix (applied to both services):** Detect a running loop with `asyncio.get_running_loop()`.
+If one exists, submit the coroutine to a `ThreadPoolExecutor` thread where `asyncio.run()`
+creates its own clean event loop. Real Celery workers (no running loop) still use
+`asyncio.run()` directly — no behavioral change for production workers.
+
+**Files:** `backend/app/services/simulation_service.py`, `backend/app/services/backtest_service.py`
+
 ## 2026-06-08 — Fix Monte Carlo 500 in Celery eager mode (simulation_service.py)
 
 **Root cause:** `_write_result_to_db_sync` called `asyncio.run()` directly. In Celery eager
