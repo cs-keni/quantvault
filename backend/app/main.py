@@ -51,9 +51,11 @@ def create_app() -> FastAPI:
                 r = task.result
                 result["task_result"] = str(r)[:200] if not isinstance(r, dict) else r
         except Exception as exc:
+            import traceback
             result["apply_ok"] = False
             result["error_type"] = type(exc).__name__
             result["error"] = str(exc)[:500]
+            result["traceback"] = traceback.format_exc()[-2000:]
         return result
 
     @app.get("/health/tiingo", tags=["health"])
