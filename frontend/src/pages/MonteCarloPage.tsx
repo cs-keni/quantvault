@@ -2,15 +2,21 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
+import { axisStyle, chartColors } from "../components/chartConfig";
+import { ChartTooltip } from "../components/charts";
+import { MetricCard } from "../components/MetricCard";
+import { MotionCardGrid } from "../components/MotionCardGrid";
+import { PageHeader } from "../components/PageHeader";
 import { apiClient } from "../services/apiClient";
 import type {
   PortfolioOut,
@@ -27,6 +33,10 @@ function currency(value: number) {
     maximumFractionDigits: 0,
     style: "currency",
   }).format(value);
+}
+
+function percent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
 }
 
 function percentile(values: number[], percentileRank: number) {
@@ -51,17 +61,47 @@ function buildPathChart(result: SimulationResponse) {
 
   for (let day = 0; day < pathLength; day += step) {
     const values = result.sample_paths.map((path) => path[day]);
-    const row: Record<string, number> = {
+    const p5 = percentile(values, 5);
+    const p25 = percentile(values, 25);
+    const p50 = percentile(values, 50);
+    const p75 = percentile(values, 75);
+    const p95 = percentile(values, 95);
+    const row: Record<string, number | [number, number]> = {
+      band: [p5, p95],
       day,
       initial: result.initial_investment,
-      p5: percentile(values, 5),
-      p25: percentile(values, 25),
-      p50: percentile(values, 50),
-      p75: percentile(values, 75),
-      p95: percentile(values, 95),
+      p5,
+      p25,
+      p50,
+      p75,
+      p95,
     };
     result.sample_paths.slice(0, 20).forEach((path, index) => {
       row[`path${index}`] = path[day];
+    });
+    rows.push(row);
+  }
+
+  const lastDay = pathLength - 1;
+  if (rows.at(-1)?.day !== lastDay) {
+    const values = result.sample_paths.map((path) => path[lastDay]);
+    const p5 = percentile(values, 5);
+    const p25 = percentile(values, 25);
+    const p50 = percentile(values, 50);
+    const p75 = percentile(values, 75);
+    const p95 = percentile(values, 95);
+    const row: Record<string, number | [number, number]> = {
+      band: [p5, p95],
+      day: lastDay,
+      initial: result.initial_investment,
+      p5,
+      p25,
+      p50,
+      p75,
+      p95,
+    };
+    result.sample_paths.slice(0, 20).forEach((path, index) => {
+      row[`path${index}`] = path[lastDay];
     });
     rows.push(row);
   }
@@ -132,22 +172,24 @@ export function MonteCarloPage() {
 
   const result = simulationStatusQuery.data?.result ?? null;
   const chartData = useMemo(() => (result ? buildPathChart(result) : []), [result]);
+  const yearlyTicks = useMemo(() => {
+    const pathLength = result?.sample_paths[0]?.length ?? 0;
+    if (pathLength === 0) {
+      return [];
+    }
+    const lastDay = pathLength - 1;
+    return Array.from({ length: Math.floor(lastDay / 252) + 1 }, (_, index) => index * 252).concat(lastDay);
+  }, [result]);
   const canSubmit = portfolioQuery.isSuccess && !submitSimulation.isPending;
   const status = simulationStatusQuery.data?.status ?? submitSimulation.data?.status ?? "READY";
 
   return (
-    <main className="min-h-screen bg-bg">
+    <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="border-b border-ink/10 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
-          <h1 className="mt-2 text-2xl font-semibold text-ink">
-            {portfolioQuery.data?.name ?? "Monte Carlo"}
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">Status: {status}</p>
-        </div>
+        <PageHeader title={portfolioQuery.data?.name ?? "Monte Carlo"} subtitle={`Status: ${status}`} />
 
         <form
-          className="mt-8 grid gap-4 rounded-lg border border-ink/10 bg-white p-5 shadow-sm lg:grid-cols-5"
+          className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-5"
           onSubmit={(event) => {
             event.preventDefault();
             submitSimulation.mutate();
@@ -156,7 +198,7 @@ export function MonteCarloPage() {
           <label className="block text-sm font-medium text-ink">
             Years
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               max="30"
               min="1"
               type="number"
@@ -167,7 +209,7 @@ export function MonteCarloPage() {
           <label className="block text-sm font-medium text-ink">
             Simulations
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               max="1000"
               min="1"
               type="number"
@@ -178,7 +220,7 @@ export function MonteCarloPage() {
           <label className="block text-sm font-medium text-ink">
             Initial investment
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               min="1"
               type="number"
               value={initialInvestment}
@@ -188,7 +230,7 @@ export function MonteCarloPage() {
           <label className="block text-sm font-medium text-ink">
             Annual contribution
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               min="0"
               type="number"
               value={annualContribution}
@@ -220,69 +262,92 @@ export function MonteCarloPage() {
 
         {result ? (
           <>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <article className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
-                <p className="text-sm text-ink/60">Mean final value</p>
-                <p className="mt-3 font-mono text-2xl font-medium text-ink">
-                  {currency(result.mean_final_value)}
-                </p>
-              </article>
-              <article className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
-                <p className="text-sm text-ink/60">P5 / P50 / P95</p>
-                <p className="mt-3 font-mono text-xl font-medium text-ink">
-                  {currency(result.percentile_outcomes["5"])} /{" "}
-                  {currency(result.percentile_outcomes["50"])} /{" "}
-                  {currency(result.percentile_outcomes["95"])}
-                </p>
-              </article>
-              <article className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
-                <p className="text-sm text-ink/60">Probability of profit</p>
-                <p className="mt-3 font-mono text-2xl font-medium text-positive">
-                  {(result.probability_of_profit * 100).toFixed(1)}%
-                </p>
-              </article>
-              <article className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
-                <p className="text-sm text-ink/60">Probability of doubling</p>
-                <p className="mt-3 font-mono text-2xl font-medium text-ink">
-                  {(result.probability_of_doubling * 100).toFixed(1)}%
-                </p>
-              </article>
+            <div className="mt-8">
+              <MotionCardGrid className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  <MetricCard
+                    key="mean"
+                    label="Mean final value"
+                    value={result.mean_final_value}
+                    formatter={currency}
+                  />,
+                  <MetricCard
+                    key="p50"
+                    label="Median final value"
+                    value={result.percentile_outcomes["50"]}
+                    formatter={currency}
+                  />,
+                  <MetricCard
+                    key="profit"
+                    label="Probability of profit"
+                    value={result.probability_of_profit}
+                    formatter={percent}
+                    tone="positive"
+                  />,
+                  <MetricCard
+                    key="doubling"
+                    label="Probability of doubling"
+                    value={result.probability_of_doubling}
+                    formatter={percent}
+                  />,
+                ]}
+              </MotionCardGrid>
             </div>
 
-            <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
+            <section className="mt-8 rounded-lg border border-border bg-surface p-5">
               <h2 className="text-lg font-semibold text-ink">Simulation paths</h2>
               <div className="mt-4 h-96">
                 <ResponsiveContainer height="100%" width="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid stroke="#e2e8f0" />
-                    <XAxis dataKey="day" fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 252)}y`} />
-                    <YAxis fontSize={12} tickFormatter={(value) => currency(Number(value))} width={84} />
-                    <Tooltip formatter={(value) => currency(Number(value))} />
+                  <ComposedChart data={chartData}>
+                    <defs>
+                      <linearGradient id="monteCarloBand" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={chartColors.band} stopOpacity={0.2} />
+                        <stop offset="100%" stopColor={chartColors.band} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={chartColors.grid} />
+                    <XAxis
+                      dataKey="day"
+                      domain={[0, "dataMax"]}
+                      ticks={yearlyTicks}
+                      tickFormatter={(value) => `${Math.round(Number(value) / 252)}y`}
+                      type="number"
+                      {...axisStyle}
+                    />
+                    <YAxis tickFormatter={(value) => currency(Number(value))} width={84} {...axisStyle} />
+                    <Tooltip content={<ChartTooltip formatter={(value) => currency(Number(value))} />} />
+                    <Area
+                      dataKey="band"
+                      fill="url(#monteCarloBand)"
+                      isAnimationActive={false}
+                      stroke="none"
+                      type="monotone"
+                    />
                     {result.sample_paths.slice(0, 20).map((_, index) => (
                       <Line
                         dataKey={`path${index}`}
                         dot={false}
                         isAnimationActive={false}
                         key={`path${index}`}
-                        stroke="#94a3b8"
+                        stroke={chartColors.benchmark}
                         strokeOpacity={0.22}
                         strokeWidth={1}
                         type="monotone"
                       />
                     ))}
                     <Line dataKey="p5" dot={false} stroke="#ef4444" strokeWidth={2} type="monotone" />
-                    <Line dataKey="p25" dot={false} stroke="#f59e0b" strokeWidth={2} type="monotone" />
-                    <Line dataKey="p50" dot={false} stroke="#6366f1" strokeWidth={3} type="monotone" />
-                    <Line dataKey="p75" dot={false} stroke="#10b981" strokeWidth={2} type="monotone" />
-                    <Line dataKey="p95" dot={false} stroke="#10b981" strokeWidth={2} type="monotone" />
-                    <Line dataKey="initial" dot={false} stroke="#0f172a" strokeDasharray="6 6" strokeWidth={2} type="monotone" />
-                  </LineChart>
+                    <Line dataKey="p25" dot={false} stroke={chartColors.portfolio} strokeOpacity={0.45} strokeWidth={2} type="monotone" />
+                    <Line dataKey="p50" dot={false} stroke={chartColors.portfolio} strokeWidth={3} type="monotone" />
+                    <Line dataKey="p75" dot={false} stroke={chartColors.portfolio} strokeOpacity={0.65} strokeWidth={2} type="monotone" />
+                    <Line dataKey="p95" dot={false} stroke={chartColors.positive} strokeWidth={2} type="monotone" />
+                    <Line dataKey="initial" dot={false} stroke={chartColors.benchmark} strokeDasharray="6 6" strokeWidth={2} type="monotone" />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </section>
           </>
         ) : (
-          <div className="mt-8 flex h-72 items-center justify-center rounded-lg bg-surface text-sm text-ink/60">
+          <div className="mt-8 flex h-72 items-center justify-center rounded-lg border border-border bg-surface text-sm text-muted">
             Simulation results will appear here.
           </div>
         )}

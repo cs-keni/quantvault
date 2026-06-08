@@ -2,6 +2,7 @@ import axios from "axios";
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { PageHeader } from "../components/PageHeader";
 import { apiClient } from "../services/apiClient";
 import type { AssetClass, HoldingOut, PortfolioOut } from "../types/api";
 import { validateHoldingDrafts } from "../utils/portfolioValidation";
@@ -66,7 +67,7 @@ export function PortfolioBuilderPage() {
       ? "bg-positive"
       : validation.totalPercent > 100
         ? "bg-negative"
-        : "bg-accent";
+        : "bg-muted";
 
   function updateHolding(clientId: string, patch: Partial<HoldingDraft>) {
     setHoldings((current) =>
@@ -129,19 +130,16 @@ export function PortfolioBuilderPage() {
   }
 
   return (
-    <main className="min-h-screen bg-bg">
+    <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="border-b border-ink/10 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
-          <h1 className="mt-2 text-2xl font-semibold text-ink">New portfolio</h1>
-        </div>
+        <PageHeader title="New portfolio" />
 
         <form className="mt-8 space-y-8" onSubmit={handleSubmit}>
           <section className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
             <label className="block text-sm font-medium text-ink">
               Portfolio name
               <input
-                className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
               />
@@ -149,7 +147,7 @@ export function PortfolioBuilderPage() {
             <label className="block text-sm font-medium text-ink">
               Benchmark
               <input
-                className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm uppercase outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm uppercase outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                 value={benchmarkTicker}
                 onChange={(event) => setBenchmarkTicker(event.target.value)}
               />
@@ -157,7 +155,7 @@ export function PortfolioBuilderPage() {
             <label className="block text-sm font-medium text-ink md:col-span-2">
               Description
               <textarea
-                className="mt-1 min-h-24 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                className="mt-1 min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />
@@ -168,12 +166,12 @@ export function PortfolioBuilderPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">Holdings</h2>
-                <p className="mt-1 font-mono text-sm text-ink/60">
+                <p className="mt-1 font-mono text-sm text-muted">
                   {validation.totalPercent.toFixed(2)}% allocated
                 </p>
               </div>
               <button
-                className="rounded-md border border-ink/10 px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
+                className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
                 type="button"
                 onClick={addHolding}
               >
@@ -181,7 +179,7 @@ export function PortfolioBuilderPage() {
               </button>
             </div>
 
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface">
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-border">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${weightTone}`}
                 style={{ width: `${weightBarWidth}%` }}
@@ -191,14 +189,14 @@ export function PortfolioBuilderPage() {
             <div className="mt-5 space-y-4">
               {holdings.map((holding) => (
                 <article
-                  className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm"
+                  className="rounded-lg border border-border bg-surface p-4"
                   key={holding.clientId}
                 >
                   <div className="grid gap-4 lg:grid-cols-[120px_minmax(160px,1fr)_180px_140px_140px_auto]">
                     <label className="block text-sm font-medium text-ink">
                       Ticker
                       <input
-                        className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm uppercase outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                        className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm uppercase outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                         value={holding.ticker}
                         onChange={(event) =>
                           updateHolding(holding.clientId, { ticker: event.target.value })
@@ -208,7 +206,7 @@ export function PortfolioBuilderPage() {
                     <label className="block text-sm font-medium text-ink">
                       Asset name
                       <input
-                        className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                        className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                         value={holding.asset_name}
                         onChange={(event) =>
                           updateHolding(holding.clientId, { asset_name: event.target.value })
@@ -218,7 +216,7 @@ export function PortfolioBuilderPage() {
                     <label className="block text-sm font-medium text-ink">
                       Asset class
                       <select
-                        className="mt-1 h-10 w-full rounded-md border border-ink/10 bg-white px-3 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                        className="mt-1 h-10 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                         value={holding.asset_class}
                         onChange={(event) =>
                           updateHolding(holding.clientId, {
@@ -236,7 +234,7 @@ export function PortfolioBuilderPage() {
                     <label className="block text-sm font-medium text-ink">
                       Weight %
                       <input
-                        className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                        className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                         min="0"
                         max="100"
                         step="0.01"
@@ -252,7 +250,7 @@ export function PortfolioBuilderPage() {
                     <label className="block text-sm font-medium text-ink">
                       Shares
                       <input
-                        className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                        className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                         min="0"
                         step="0.000001"
                         type="number"
@@ -263,7 +261,7 @@ export function PortfolioBuilderPage() {
                       />
                     </label>
                     <button
-                      className="self-end rounded-md border border-ink/10 px-3 py-2 text-sm font-semibold text-ink/70 transition hover:border-negative hover:text-negative disabled:cursor-not-allowed disabled:opacity-40"
+                      className="self-end rounded-md border border-border px-3 py-2 text-sm font-semibold text-muted transition hover:border-negative hover:text-negative disabled:cursor-not-allowed disabled:opacity-40"
                       type="button"
                       disabled={holdings.length === 1}
                       onClick={() => removeHolding(holding.clientId)}
@@ -274,7 +272,7 @@ export function PortfolioBuilderPage() {
                   <label className="mt-4 block text-sm font-medium text-ink">
                     Notes
                     <textarea
-                      className="mt-1 min-h-16 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+                      className="mt-1 min-h-16 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
                       value={holding.notes}
                       onChange={(event) =>
                         updateHolding(holding.clientId, { notes: event.target.value })
@@ -297,9 +295,9 @@ export function PortfolioBuilderPage() {
             </div>
           ) : null}
 
-          <div className="flex justify-end gap-3 border-t border-ink/10 pt-6">
+          <div className="flex justify-end gap-3 border-t border-border pt-6">
             <button
-              className="rounded-md border border-ink/10 px-4 py-2 text-sm font-semibold text-ink transition hover:border-ink/20"
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
               type="button"
               onClick={() => navigate("/dashboard")}
             >

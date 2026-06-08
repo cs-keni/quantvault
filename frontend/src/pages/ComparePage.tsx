@@ -1,6 +1,7 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { PageHeader } from "../components/PageHeader";
 import { apiClient } from "../services/apiClient";
 import type { PortfolioListItem, PortfolioMetricsResponse } from "../types/api";
 
@@ -74,17 +75,14 @@ export function ComparePage() {
   const isMetricLoading = metricsQueries.some((query) => query.isLoading);
 
   return (
-    <main className="min-h-screen bg-bg">
+    <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="border-b border-ink/10 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
-          <h1 className="mt-2 text-2xl font-semibold text-ink">Compare</h1>
-        </div>
+        <PageHeader title="Compare" />
 
         {portfoliosQuery.isLoading ? (
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
-              <div className="h-14 animate-pulse rounded-lg bg-surface" key={index} />
+              <div className="h-14 animate-pulse rounded-lg border border-border bg-surface" key={index} />
             ))}
           </div>
         ) : portfoliosQuery.isError ? (
@@ -105,7 +103,7 @@ export function ComparePage() {
                 className={`flex items-center justify-between rounded-lg border p-4 text-sm font-medium transition ${
                   activeSelectedIds.includes(portfolio.id)
                     ? "border-accent bg-accent/5 text-accent"
-                    : "border-ink/10 bg-white text-ink"
+                    : "border-border bg-surface text-ink"
                 }`}
                 key={portfolio.id}
               >
@@ -122,7 +120,7 @@ export function ComparePage() {
         )}
 
         {selectedPortfolios.length < 2 ? (
-          <div className="mt-8 rounded-lg bg-surface p-5 text-sm text-ink/60">
+          <div className="mt-8 rounded-lg border border-border bg-surface p-5 text-sm text-muted">
             Select at least two portfolios to compare.
           </div>
         ) : null}
@@ -140,10 +138,10 @@ export function ComparePage() {
           </div>
         ) : null}
 
-        {selectedPortfolios.length >= 2 ? <div className="mt-8 overflow-x-auto rounded-lg border border-ink/10 bg-white shadow-sm">
+        {selectedPortfolios.length >= 2 ? <div className="mt-8 overflow-x-auto rounded-lg border border-border bg-surface">
           <table className="min-w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-ink/10 bg-surface">
+              <tr className="border-b border-border bg-bg">
                 <th className="px-4 py-3 font-semibold text-ink">Metric</th>
                 {selectedPortfolios.map((portfolio) => (
                   <th className="px-4 py-3 font-semibold text-ink" key={portfolio.id}>
@@ -154,8 +152,8 @@ export function ComparePage() {
             </thead>
             <tbody>
               {metricRows.map((row) => (
-                <tr className="border-b border-ink/5 last:border-0" key={row.key}>
-                  <th className="px-4 py-3 font-medium text-ink/70">{row.label}</th>
+                <tr className="border-b border-border last:border-0" key={row.key}>
+                  <th className="px-4 py-3 font-medium text-muted">{row.label}</th>
                   {selectedPortfolios.map((portfolio, index) => {
                     const metrics = metricsQueries[index]?.data;
                     return (

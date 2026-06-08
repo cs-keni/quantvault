@@ -3,6 +3,31 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-08 — Phase 8b: UI overhaul implemented and verified
+
+Implemented and verified the locked Phase 8b UI overhaul.
+
+**Changed:**
+- Added dark-mode FOUC prevention in `frontend/index.html`, Tailwind v4 dark tokens in `frontend/src/index.css`, and a persisted `qv-theme` Zustand store.
+- Added shared UI components: `AppShell`, `MetricCard`, `PeriodToggle`, `SkeletonCard`, `PageHeader`, `MotionCardGrid`, `ChartTooltip`, and chart palette constants.
+- Wrapped authenticated routes in the responsive AppShell: 220px desktop sidebar, 64px tablet icon rail, and mobile hamburger drawer.
+- Converted all eight frontend pages, including Login/Register, to semantic dark/light tokens.
+- Added framer-motion route fade transitions, card stagger animations, and sidebar spring animation with reduced-motion fallbacks.
+- Updated Dashboard, Analysis, Monte Carlo, and Backtest charts with the locked dark Recharts palette, muted axes, custom tooltip, and gradient fills.
+- Lazy-loaded all page routes via `React.lazy()` and `Suspense`.
+- Added README screenshots for Dashboard dark mode, Analysis efficient frontier, and Monte Carlo paths using the VTI/BND/VXUS demo portfolio.
+
+**Checks:**
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 17 passed
+- `cd frontend && npm run build` — passed; non-failing `rolldown:vite-resolve` plugin timing warning only
+- Playwright Standard smoke — passed across Login, Register, Dashboard, Portfolio Builder, Analysis, Monte Carlo, Backtest, Compare, chart rendering, dark-mode toggle, tablet icon rail, and mobile drawer
+- Manual review scans — no leftover page-level `bg-white`/gray hardcoding; `bg-accent` limited to primary buttons and active/selected interactive states
+
+**Gotcha:** screenshot and QA browser runs require escalated WSL Chromium
+execution in this environment. The temporary harnesses live in `/tmp/` and are
+not repo artifacts.
+
 ## 2026-06-08 — Phase 8a: Infra implemented and verified
 
 Implemented and verified the locked Phase 8a infra slice.

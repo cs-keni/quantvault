@@ -40,7 +40,7 @@ export function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-6">
-      <section className="w-full max-w-sm rounded-lg border border-ink/10 bg-white p-6 shadow-sm">
+      <section className="w-full max-w-sm rounded-lg border border-border bg-surface p-6">
         <div className="mb-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
           <h1 className="mt-2 text-2xl font-semibold text-ink">Sign in</h1>
@@ -49,7 +49,7 @@ export function LoginPage() {
           <label className="block text-sm font-medium text-ink">
             Email
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
               type="email"
               autoComplete="email"
               {...register("email", {
@@ -63,7 +63,7 @@ export function LoginPage() {
           <label className="block text-sm font-medium text-ink">
             Password
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 bg-white px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
               type="password"
               autoComplete="current-password"
               {...register("password", { required: "Password is required" })}
@@ -80,7 +80,7 @@ export function LoginPage() {
             {isSubmitting ? "Signing in" : "Sign in"}
           </button>
         </form>
-        <p className="mt-5 text-center text-sm text-ink/65">
+        <p className="mt-5 text-center text-sm text-muted">
           New to QuantVault?{" "}
           <Link className="font-medium text-accent hover:text-accent/80" to="/register">
             Create an account

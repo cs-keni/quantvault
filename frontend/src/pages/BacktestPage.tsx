@@ -2,15 +2,21 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
+import { axisStyle, chartColors } from "../components/chartConfig";
+import { ChartTooltip } from "../components/charts";
+import { MetricCard } from "../components/MetricCard";
+import { MotionCardGrid } from "../components/MotionCardGrid";
+import { PageHeader } from "../components/PageHeader";
 import { apiClient } from "../services/apiClient";
 import type {
   BacktestStatusResponse,
@@ -105,18 +111,12 @@ export function BacktestPage() {
   const status = result?.status ?? submitBacktest.data?.status ?? "READY";
 
   return (
-    <main className="min-h-screen bg-bg">
+    <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="border-b border-ink/10 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
-          <h1 className="mt-2 text-2xl font-semibold text-ink">
-            {portfolioQuery.data?.name ?? "Backtest"}
-          </h1>
-          <p className="mt-1 text-sm text-ink/60">Status: {status}</p>
-        </div>
+        <PageHeader title={portfolioQuery.data?.name ?? "Backtest"} subtitle={`Status: ${status}`} />
 
         <form
-          className="mt-8 grid gap-4 rounded-lg border border-ink/10 bg-white p-5 shadow-sm lg:grid-cols-6"
+          className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-6"
           onSubmit={(event) => {
             event.preventDefault();
             submitBacktest.mutate();
@@ -125,7 +125,7 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             Start date
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               type="date"
               value={startDate}
               onChange={(event) => setStartDate(event.target.value)}
@@ -134,7 +134,7 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             End date
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               type="date"
               value={endDate}
               onChange={(event) => setEndDate(event.target.value)}
@@ -143,7 +143,7 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             Rebalance
             <select
-              className="mt-1 h-10 w-full rounded-md border border-ink/10 bg-white px-3 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 h-10 w-full rounded-md border border-border bg-bg px-3 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               value={rebalanceFrequency}
               onChange={(event) => setRebalanceFrequency(event.target.value as RebalanceFrequency)}
             >
@@ -157,7 +157,7 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             Initial investment
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none ring-accent/30 focus:border-accent focus:ring-4"
               min="1"
               type="number"
               value={initialInvestment}
@@ -167,7 +167,7 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             Benchmark
             <input
-              className="mt-1 w-full rounded-md border border-ink/10 bg-surface px-3 py-2 text-sm text-ink/70"
+              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-muted"
               readOnly
               value={portfolioQuery.data?.benchmark_ticker ?? "SPY"}
             />
@@ -197,46 +197,56 @@ export function BacktestPage() {
 
         {tearsheet ? (
           <>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-              {[
-                ["CAGR", percent(tearsheet.cagr)],
-                ["Sharpe", tearsheet.sharpe.toFixed(2)],
-                ["Sortino", tearsheet.sortino.toFixed(2)],
-                ["Calmar", tearsheet.calmar === null ? "N/A" : tearsheet.calmar.toFixed(2)],
-                ["Max drawdown", percent(tearsheet.max_drawdown)],
-                ["Alpha", percent(tearsheet.alpha)],
-              ].map(([label, value]) => (
-                <article className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm" key={label}>
-                  <p className="text-sm text-ink/60">{label}</p>
-                  <p className="mt-3 font-mono text-2xl font-medium text-ink">{value}</p>
-                </article>
-              ))}
+            <div className="mt-8">
+              <MotionCardGrid>
+                {[
+                  <MetricCard key="cagr" label="CAGR" value={tearsheet.cagr} formatter={percent} tone={tearsheet.cagr >= 0 ? "positive" : "negative"} />,
+                  <MetricCard key="sharpe" label="Sharpe" value={tearsheet.sharpe} formatter={(value) => value.toFixed(2)} tone={tearsheet.sharpe >= 0 ? "positive" : "negative"} />,
+                  <MetricCard key="sortino" label="Sortino" value={tearsheet.sortino} formatter={(value) => value.toFixed(2)} tone={tearsheet.sortino >= 0 ? "positive" : "negative"} />,
+                  <MetricCard key="calmar" label="Calmar" value={tearsheet.calmar} formatter={(value) => value.toFixed(2)} />,
+                  <MetricCard key="max-drawdown" label="Max drawdown" value={tearsheet.max_drawdown} formatter={percent} tone="negative" />,
+                  <MetricCard key="alpha" label="Alpha" value={tearsheet.alpha} formatter={percent} tone={tearsheet.alpha >= 0 ? "positive" : "negative"} />,
+                ]}
+              </MotionCardGrid>
             </div>
 
-            <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
+            <section className="mt-8 rounded-lg border border-border bg-surface p-5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <h2 className="text-lg font-semibold text-ink">Equity curve</h2>
-                <p className="text-sm text-ink/60">
+                <p className="text-sm text-muted">
                   Final {currency(tearsheet.final_value)} vs benchmark{" "}
                   {currency(tearsheet.benchmark_final_value)}
                 </p>
               </div>
               <div className="mt-4 h-96">
                 <ResponsiveContainer height="100%" width="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid stroke="#e2e8f0" />
-                    <XAxis dataKey="date" fontSize={12} minTickGap={32} />
-                    <YAxis fontSize={12} tickFormatter={(value) => currency(Number(value))} width={84} />
-                    <Tooltip formatter={(value) => currency(Number(value))} />
-                    <Line dataKey="portfolio" dot={false} stroke="#6366f1" strokeWidth={3} type="monotone" />
-                    <Line dataKey="benchmark" dot={false} stroke="#0f172a" strokeWidth={2} type="monotone" />
-                  </LineChart>
+                  <ComposedChart data={chartData}>
+                    <defs>
+                      <linearGradient id="equityPortfolio" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={chartColors.portfolio} stopOpacity={0.2} />
+                        <stop offset="100%" stopColor={chartColors.portfolio} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke={chartColors.grid} />
+                    <XAxis dataKey="date" minTickGap={32} {...axisStyle} />
+                    <YAxis tickFormatter={(value) => currency(Number(value))} width={84} {...axisStyle} />
+                    <Tooltip content={<ChartTooltip formatter={(value) => currency(Number(value))} />} />
+                    <Area
+                      dataKey="portfolio"
+                      fill="url(#equityPortfolio)"
+                      isAnimationActive={false}
+                      stroke="none"
+                      type="monotone"
+                    />
+                    <Line dataKey="portfolio" dot={false} stroke={chartColors.portfolio} strokeWidth={3} type="monotone" />
+                    <Line dataKey="benchmark" dot={false} stroke={chartColors.benchmark} strokeWidth={2} type="monotone" />
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </section>
           </>
         ) : (
-          <div className="mt-8 flex h-72 items-center justify-center rounded-lg bg-surface text-sm text-ink/60">
+          <div className="mt-8 flex h-72 items-center justify-center rounded-lg border border-border bg-surface text-sm text-muted">
             Backtest results will appear here.
           </div>
         )}

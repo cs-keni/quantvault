@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -9,15 +9,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { axisStyle, chartColors } from "../components/chartConfig";
+import { ChartTooltip } from "../components/charts";
+import { MetricCard } from "../components/MetricCard";
+import { MotionCardGrid } from "../components/MotionCardGrid";
+import { PageHeader } from "../components/PageHeader";
+import { PeriodToggle, type Period } from "../components/PeriodToggle";
+import { SkeletonCard } from "../components/SkeletonCard";
 import { apiClient } from "../services/apiClient";
 import { useAuthStore } from "../store/authStore";
 import type { PortfolioListItem, PortfolioMetricsResponse } from "../types/api";
-
-type DashboardPeriod = "1mo" | "6mo" | "1y" | "2y" | "max";
-
-const periods: DashboardPeriod[] = ["1mo", "6mo", "1y", "2y", "max"];
 
 const metricFormatters = {
   number(value: number) {
@@ -27,81 +30,6 @@ const metricFormatters = {
     return `${(value * 100).toFixed(2)}%`;
   },
 };
-
-function useCountUp(value: number | null, shouldAnimate: boolean) {
-  const [displayValue, setDisplayValue] = useState(value ?? 0);
-
-  useEffect(() => {
-    let animationId = 0;
-    if (value === null) {
-      animationId = window.requestAnimationFrame(() => setDisplayValue(0));
-      return () => window.cancelAnimationFrame(animationId);
-    }
-    if (!shouldAnimate) {
-      animationId = window.requestAnimationFrame(() => setDisplayValue(value));
-      return () => window.cancelAnimationFrame(animationId);
-    }
-
-    const targetValue = value;
-    let frame = 0;
-    const frames = 28;
-
-    function tick() {
-      frame += 1;
-      const progress = Math.min(frame / frames, 1);
-      const eased = 1 - (1 - progress) ** 3;
-      setDisplayValue(targetValue * eased);
-      if (progress < 1) {
-        animationId = window.requestAnimationFrame(tick);
-      }
-    }
-
-    animationId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(animationId);
-  }, [shouldAnimate, value]);
-
-  return displayValue;
-}
-
-function MetricCard({
-  label,
-  value,
-  formatter,
-  tone = "neutral",
-  shouldAnimate,
-  delayClass,
-}: {
-  label: string;
-  value: number | null;
-  formatter: (value: number) => string;
-  tone?: "neutral" | "positive" | "negative";
-  shouldAnimate: boolean;
-  delayClass: string;
-}) {
-  const displayValue = useCountUp(value, shouldAnimate);
-  const toneClass =
-    tone === "positive" ? "text-positive" : tone === "negative" ? "text-negative" : "text-ink";
-
-  return (
-    <article
-      className={`rounded-lg border border-ink/10 bg-white p-4 shadow-sm ${shouldAnimate ? `animate-in fade-in slide-in-from-bottom-2 duration-500 ${delayClass}` : ""}`}
-    >
-      <p className="text-sm font-medium text-ink/60">{label}</p>
-      <p className={`mt-3 font-mono text-2xl font-medium ${toneClass}`}>
-        {value === null ? "N/A" : formatter(displayValue)}
-      </p>
-    </article>
-  );
-}
-
-function SkeletonCard() {
-  return (
-    <div className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
-      <div className="h-4 w-24 animate-pulse rounded bg-surface" />
-      <div className="mt-4 h-8 w-28 animate-pulse rounded bg-surface" />
-    </div>
-  );
-}
 
 function buildHistogram(returns: number[]) {
   if (returns.length === 0) {
@@ -130,13 +58,11 @@ function buildHistogram(returns: number[]) {
 }
 
 export function DashboardPage() {
+  const { portfolioId } = useParams();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
-  const [period, setPeriod] = useState<DashboardPeriod>("1y");
+  const [period, setPeriod] = useState<Period>("1y");
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
-  const hasAnimated = useRef(false);
-  const [animateMetrics, setAnimateMetrics] = useState(false);
 
   const portfoliosQuery = useQuery({
     queryKey: ["portfolios"],
@@ -150,7 +76,7 @@ export function DashboardPage() {
     portfoliosQuery.data?.find((portfolio) => portfolio.id === user?.default_portfolio_id) ??
     portfoliosQuery.data?.[0] ??
     null;
-  const activePortfolioId = selectedPortfolioId ?? defaultPortfolio?.id ?? null;
+  const activePortfolioId = portfolioId ?? selectedPortfolioId ?? defaultPortfolio?.id ?? null;
 
   const metricsQuery = useQuery({
     queryKey: ["portfolioMetrics", activePortfolioId, period],
@@ -165,17 +91,11 @@ export function DashboardPage() {
   });
 
   useEffect(() => {
-    if (!metricsQuery.isSuccess || hasAnimated.current) {
+    if (portfolioId !== undefined || activePortfolioId === null) {
       return;
     }
-    hasAnimated.current = true;
-    const animationId = window.requestAnimationFrame(() => setAnimateMetrics(true));
-    const timeoutId = window.setTimeout(() => setAnimateMetrics(false), 800);
-    return () => {
-      window.cancelAnimationFrame(animationId);
-      window.clearTimeout(timeoutId);
-    };
-  }, [activePortfolioId, metricsQuery.isSuccess, metricsQuery.dataUpdatedAt]);
+    navigate(`/dashboard/portfolios/${activePortfolioId}`, { replace: true });
+  }, [activePortfolioId, navigate, portfolioId]);
 
   const selectedPortfolio = portfoliosQuery.data?.find(
     (portfolio) => portfolio.id === activePortfolioId,
@@ -185,53 +105,32 @@ export function DashboardPage() {
     [metricsQuery.data?.daily_returns],
   );
 
-  function handleLogout() {
-    logout();
-    navigate("/login");
-  }
-
   function handlePortfolioChange(portfolioId: string) {
-    hasAnimated.current = false;
-    setAnimateMetrics(false);
     setSelectedPortfolioId(portfolioId || null);
+    if (portfolioId) {
+      navigate(`/dashboard/portfolios/${portfolioId}`);
+    }
   }
 
-  function handlePeriodChange(nextPeriod: DashboardPeriod) {
-    hasAnimated.current = false;
-    setAnimateMetrics(false);
+  function handlePeriodChange(nextPeriod: Period) {
     setPeriod(nextPeriod);
   }
 
   const metrics = metricsQuery.data;
 
   return (
-    <main className="min-h-screen bg-bg">
-      <header className="border-b border-ink/10 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-accent">QuantVault</p>
-            <h1 className="mt-1 text-2xl font-semibold text-ink">Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-ink/60 sm:inline">{user?.full_name}</span>
-            <button
-              className="rounded-md border border-ink/10 px-3 py-2 text-sm font-medium text-ink/70 transition hover:border-ink/20 hover:text-ink"
-              type="button"
-              onClick={handleLogout}
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
-
+    <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <div className="flex flex-col gap-4 border-b border-ink/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-ink">
+            <PageHeader
+              title="Dashboard"
+              subtitle={user?.full_name ? `Signed in as ${user.full_name}` : undefined}
+            />
+            <h2 className="mt-6 text-xl font-semibold text-ink">
               {selectedPortfolio?.name ?? "Portfolio risk"}
             </h2>
-            <p className="mt-1 text-sm text-ink/60">
+            <p className="mt-1 text-sm text-muted">
               {selectedPortfolio
                 ? `${selectedPortfolio.holding_count} holdings - Benchmark ${selectedPortfolio.benchmark_ticker}`
                 : "Select a portfolio to view metrics."}
@@ -240,7 +139,7 @@ export function DashboardPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <select
-              className="h-10 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
+              className="h-10 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink outline-none ring-accent/30 transition focus:border-accent focus:ring-4"
               value={activePortfolioId ?? ""}
               onChange={(event) => handlePortfolioChange(event.target.value)}
               disabled={portfoliosQuery.isLoading || portfoliosQuery.isError}
@@ -253,22 +152,7 @@ export function DashboardPage() {
               ))}
             </select>
 
-            <div className="grid grid-cols-5 rounded-md border border-ink/10 bg-surface p-1">
-              {periods.map((periodOption) => (
-                <button
-                  key={periodOption}
-                  className={`h-8 min-w-12 rounded px-2 text-xs font-semibold transition ${
-                    period === periodOption
-                      ? "bg-white text-accent shadow-sm"
-                      : "text-ink/60 hover:text-ink"
-                  }`}
-                  type="button"
-                  onClick={() => handlePeriodChange(periodOption)}
-                >
-                  {periodOption}
-                </button>
-              ))}
-            </div>
+            <PeriodToggle value={period} onChange={handlePeriodChange} />
           </div>
         </div>
 
@@ -286,7 +170,7 @@ export function DashboardPage() {
         ) : null}
 
         {portfoliosQuery.isSuccess && portfoliosQuery.data.length === 0 ? (
-          <div className="mt-8 rounded-lg border border-ink/10 bg-surface p-6">
+          <div className="mt-8 rounded-lg border border-border bg-surface p-6">
             <h3 className="text-lg font-semibold text-ink">No portfolios yet</h3>
             <Link
               className="mt-4 inline-flex rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white"
@@ -297,10 +181,12 @@ export function DashboardPage() {
           </div>
         ) : null}
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          {metricsQuery.isLoading || portfoliosQuery.isLoading ? (
-            Array.from({ length: 6 }, (_, index) => <SkeletonCard key={index} />)
-          ) : metricsQuery.isError ? (
+        {metricsQuery.isLoading || portfoliosQuery.isLoading ? (
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            {Array.from({ length: 6 }, (_, index) => <SkeletonCard key={index} />)}
+          </div>
+        ) : metricsQuery.isError ? (
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-lg border border-negative/20 bg-negative/5 p-4 sm:col-span-2 xl:col-span-6">
               <p className="font-medium text-negative">Unable to load portfolio metrics.</p>
               <button
@@ -311,65 +197,65 @@ export function DashboardPage() {
                 Retry
               </button>
             </div>
-          ) : metrics ? (
-            <>
+          </div>
+        ) : null}
+
+        {metrics ? (
+          <div className="mt-8">
+            <MotionCardGrid>
+              {[
               <MetricCard
+                key="sharpe"
                 label="Sharpe"
                 value={metrics.sharpe_ratio}
                 formatter={metricFormatters.number}
                 tone={metrics.sharpe_ratio >= 0 ? "positive" : "negative"}
-                shouldAnimate={animateMetrics}
-                delayClass="delay-0"
-              />
+              />,
               <MetricCard
+                key="sortino"
                 label="Sortino"
                 value={metrics.sortino_ratio}
                 formatter={metricFormatters.number}
                 tone={metrics.sortino_ratio >= 0 ? "positive" : "negative"}
-                shouldAnimate={animateMetrics}
-                delayClass="delay-75"
-              />
+              />,
               <MetricCard
+                key="var"
                 label="VaR"
                 value={metrics.var}
                 formatter={metricFormatters.percent}
                 tone="negative"
-                shouldAnimate={animateMetrics}
-                delayClass="delay-100"
-              />
+              />,
               <MetricCard
+                key="cvar"
                 label="CVaR"
                 value={metrics.cvar}
                 formatter={metricFormatters.percent}
                 tone="negative"
-                shouldAnimate={animateMetrics}
-                delayClass="delay-150"
-              />
+              />,
               <MetricCard
+                key="beta"
                 label="Beta"
                 value={metrics.beta}
                 formatter={metricFormatters.number}
-                shouldAnimate={animateMetrics}
-                delayClass="delay-200"
-              />
+              />,
               <MetricCard
+                key="max-drawdown"
                 label="Max drawdown"
                 value={metrics.max_drawdown}
                 formatter={metricFormatters.percent}
                 tone="negative"
-                shouldAnimate={animateMetrics}
-                delayClass="delay-300"
-              />
-            </>
-          ) : null}
-        </div>
+              />,
+              ]}
+            </MotionCardGrid>
+          </div>
+        ) : null}
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-          <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-border bg-surface p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-base font-semibold text-ink">Return distribution</h3>
-                <p className="mt-1 text-sm text-ink/60">
+                <p className="mt-1 text-sm text-muted">
                   {metrics ? `${metrics.n_trading_days} trading days` : "Waiting for metrics"}
                 </p>
               </div>
@@ -378,54 +264,48 @@ export function DashboardPage() {
               {histogramData.length > 0 ? (
                 <ResponsiveContainer height="100%" width="100%">
                   <BarChart data={histogramData}>
-                    <CartesianGrid stroke="#e2e8f0" vertical={false} />
-                    <XAxis dataKey="bucket" fontSize={12} tickLine={false} />
-                    <YAxis allowDecimals={false} fontSize={12} tickLine={false} width={36} />
-                    <Tooltip
-                      contentStyle={{
-                        border: "1px solid #e2e8f0",
-                        borderRadius: 8,
-                        color: "#0f172a",
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    <CartesianGrid stroke={chartColors.grid} vertical={false} />
+                    <XAxis dataKey="bucket" {...axisStyle} />
+                    <YAxis allowDecimals={false} width={36} {...axisStyle} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Bar dataKey="count" fill={chartColors.portfolio} radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="flex h-full items-center justify-center rounded-md bg-surface text-sm text-ink/60">
+                <div className="flex h-full items-center justify-center rounded-md border border-border text-sm text-muted">
                   No return data available
                 </div>
               )}
             </div>
           </div>
 
-          <aside className="rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
+          <aside className="rounded-lg border border-border bg-surface p-5">
             <h3 className="text-base font-semibold text-ink">Risk context</h3>
             <dl className="mt-4 space-y-4 text-sm">
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-ink/60">Annual return</dt>
+                <dt className="text-muted">Annual return</dt>
                 <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.annual_return) : "N/A"}
+                  {metrics ? metricFormatters.percent(metrics.annual_return) : "—"}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-ink/60">Annual volatility</dt>
+                <dt className="text-muted">Annual volatility</dt>
                 <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.annual_volatility) : "N/A"}
+                  {metrics ? metricFormatters.percent(metrics.annual_volatility) : "—"}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-ink/60">Risk-free rate</dt>
+                <dt className="text-muted">Risk-free rate</dt>
                 <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.risk_free_rate) : "N/A"}
+                  {metrics ? metricFormatters.percent(metrics.risk_free_rate) : "—"}
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-ink/60">Beta benchmark</dt>
-                <dd className="font-mono text-ink">{metrics?.beta_benchmark ?? "N/A"}</dd>
+                <dt className="text-muted">Beta benchmark</dt>
+                <dd className="font-mono text-ink">{metrics?.beta_benchmark ?? "—"}</dd>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <dt className="text-ink/60">Dropped tickers</dt>
+                <dt className="text-muted">Dropped tickers</dt>
                 <dd className="font-mono text-ink">{metrics?.dropped_tickers.length ?? 0}</dd>
               </div>
             </dl>

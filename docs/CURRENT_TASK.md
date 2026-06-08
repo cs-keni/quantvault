@@ -13,9 +13,12 @@
 - Added README from scratch with motivation narrative, architecture diagram, financial concepts, local setup, checks, and deferred screenshots section.
 - Verification passed: frontend lint/test/build, backend ruff/mypy/pytest, Docker Compose build smoke, manual review, and isolated compose QA with register/login through nginx `/api`.
 
-**Phase 8b design locked** ✅ (2026-06-07) — `/plan-design-review` complete, decisions 71–80 in PHASES.md. All visual specs ready for implementation.
+**Phase 8b UI Overhaul** ✅ complete (2026-06-08)
 
-**Next:** Implement Phase 8b T4–T12 using the locked design spec in HANDOFF.md. Phase 8a has shipped ahead of 8b per Decision 56.
+- Added dark-mode tokens, FOUC prevention, persisted `qv-theme` Zustand store, responsive `AppShell`, shared components, lazy routes, framer-motion route/card/sidebar animations, chart theming, and README screenshots.
+- Verification passed: frontend lint/test/build, manual review scans, and Playwright Standard smoke across auth pages, all 8 authenticated route surfaces, chart rendering, theme toggle, and all three sidebar breakpoints.
+
+**Next:** Commit/push Phase 8b and monitor CI.
 
 ---
 
@@ -325,8 +328,32 @@ in-network Docker checks to avoid disturbing the existing DB/Redis containers.
 
 ---
 
+## Phase 8b — UI Overhaul ✅ complete
+
+Implemented and verified 2026-06-08.
+
+- `frontend/index.html` adds the pre-hydration `qv-theme` script to prevent dark-default FOUC.
+- `frontend/src/index.css` adds Tailwind v4 dark variants and warm charcoal tokens (`bg`, `surface`, `sidebar`, `border`, `muted`, `ink`).
+- `frontend/src/store/themeStore.ts` persists the default-dark theme and updates `<html data-theme>`.
+- Added shared components: `AppShell`, `MetricCard`, `PeriodToggle`, `SkeletonCard`, `PageHeader`, `MotionCardGrid`, `ChartTooltip`, and chart color constants.
+- `frontend/src/App.tsx` lazy-loads all page components and wraps route changes in reduced-motion-aware `AnimatePresence` fade transitions.
+- `AppShell` implements the locked desktop/tablet/mobile sidebar behavior, portfolio route selector, six nav items, active state, theme toggle, and sign out.
+- Dashboard, Analysis, Monte Carlo, Backtest, Compare, Portfolio Builder, Login, and Register were converted to semantic tokens; metric grids use framer-motion staggered cards.
+- Dashboard, Analysis, Monte Carlo, and Backtest use the locked Recharts palette, dark tooltips, muted axes, and gradient fills where specified.
+- README embeds screenshots from `docs/screenshots/` for Dashboard dark mode, Analysis efficient frontier, and Monte Carlo paths using the demo portfolio VTI 60% / BND 30% / VXUS 10%.
+
+Verification:
+- [x] `cd frontend && npm run lint` — passed
+- [x] `cd frontend && npm test` — 17 passed
+- [x] `cd frontend && npm run build` — passed; non-failing `rolldown:vite-resolve` plugin timing warning only
+- [x] Playwright Standard smoke — passed: Login, Register, all authenticated route surfaces, chart SVG rendering, dark-mode toggle, tablet icon rail, mobile drawer
+- [x] Manual Phase 8b review scans — no leftover page-level light token hardcoding; `bg-accent` only on primary buttons or active/selected interactive states
+
+---
+
 ## Previously complete
 
+**Phase 8a — Infra** ✅ complete (2026-06-08)
 **Phase 6 — Backtesting Engine** ✅ complete (2026-06-07, review passed)
 **Phase 5 — Monte Carlo Simulation** ✅ complete (2026-06-07, review passed)
 **Phase 4 — Efficient Frontier** ✅ complete (2026-06-07, review passed)

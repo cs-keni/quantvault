@@ -140,5 +140,10 @@ docker compose build
 
 ## Screenshots
 
-Screenshots are intentionally deferred until the Phase 8 UI overhaul is
-complete. The demo portfolio for screenshots is VTI 60%, BND 30%, VXUS 10%.
+Demo portfolio: VTI 60%, BND 30%, VXUS 10%.
+
+![Dashboard dark mode](docs/screenshots/dashboard-dark.png)
+
+![Analysis page with efficient frontier chart](docs/screenshots/analysis-frontier.png)
+
+![Monte Carlo paths chart](docs/screenshots/monte-carlo-paths.png)

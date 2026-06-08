@@ -35,6 +35,29 @@ gates and Docker Compose build smoke passed; an isolated five-service compose
 QA boot verified migrations, backend health, frontend-to-backend networking,
 and register/login through nginx `/api`.
 
+## UI State (Phase 8b)
+
+Phase 8b is complete as of 2026-06-08. The frontend now defaults to dark mode
+with pre-hydration FOUC prevention in `frontend/index.html` and a `qv-theme`
+Zustand store that keeps `localStorage` and `document.documentElement.dataset.theme`
+in sync. Authenticated routes are wrapped in `AppShell`, with a 220px desktop
+sidebar, 64px tablet icon rail, and mobile hamburger drawer. The route graph is
+lazy-loaded with `React.lazy()` and `Suspense`; route transitions and metric
+card entrances use framer-motion with `useReducedMotion()` fallbacks.
+
+Shared Phase 8b components live in `frontend/src/components/`: `AppShell`,
+`MetricCard`, `PeriodToggle`, `SkeletonCard`, `PageHeader`,
+`MotionCardGrid`, `ChartTooltip`, and chart palette constants. All eight
+frontend pages, including Login and Register, use semantic tokens (`bg-bg`,
+`bg-surface`, `border-border`, `text-muted`, `text-ink`). README screenshots
+live in `docs/screenshots/` and use the demo portfolio VTI 60%, BND 30%, VXUS
+10%.
+
+Verification passed: `npm run lint`, `npm test` (17 tests), `npm run build`,
+manual accent/light-mode scans, and a Playwright Standard smoke covering auth
+pages, all authenticated routes, chart rendering, dark-mode toggle, desktop /
+tablet / mobile shell behavior, and the mobile drawer.
+
 ## Repo layout
 
 ```

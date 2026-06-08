@@ -9,18 +9,42 @@
 @import "@fontsource/jetbrains-mono/500.css";
 
 /* Locked design tokens — see docs/AI_CONTEXT.md "Design tokens (locked)". */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --color-bg: #ffffff;
   --color-surface: #f8fafc;
+  --color-sidebar: #f8fafc;
+  --color-border: #e2e8f0;
+  --color-muted: #64748b;
   --color-accent: #6366f1;
   --color-positive: #10b981;
   --color-negative: #ef4444;
   --color-ink: #0f172a;
 }
 
+html[data-theme="dark"] {
+  --color-bg: #111111;
+  --color-surface: #1a1a1a;
+  --color-sidebar: #161616;
+  --color-border: #2a2a2a;
+  --color-muted: #888888;
+  --color-ink: #f0f0f0;
+}
+
+html {
+  background: var(--color-bg);
+}
+
 body {
   @apply bg-bg text-ink font-sans antialiased;
+}
+
+input,
+select,
+textarea {
+  color-scheme: light dark;
 }

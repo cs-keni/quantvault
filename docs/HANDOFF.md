@@ -5,6 +5,26 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-08 (Phase 8b UI Overhaul complete)
+
+Phase 8b is implemented and verified:
+- `frontend/index.html` sets `data-theme` from `localStorage['qv-theme'] || 'dark'` before React hydrates.
+- `frontend/src/index.css` defines Tailwind v4 dark-mode tokens for warm charcoal dark mode while preserving the light tokens.
+- `frontend/src/store/themeStore.ts` owns the persisted dark/light toggle and synchronizes both `localStorage` and `<html data-theme>`.
+- Shared UI now lives in `frontend/src/components/`: `AppShell`, `MetricCard`, `PeriodToggle`, `SkeletonCard`, `PageHeader`, `MotionCardGrid`, `ChartTooltip`, and chart palette constants.
+- `AppShell` wraps authenticated routes with the locked sidebar behavior: 220px desktop, 64px tablet icon rail, and mobile hamburger drawer. The selector navigates by route-carried portfolio ID.
+- All eight pages were converted to semantic tokens, including Login/Register, and chart pages now use the locked Recharts palette/tooltips/gradients.
+- `frontend/src/App.tsx` lazy-loads all pages, uses `Suspense`, and wraps route content in `AnimatePresence` fade transitions with `useReducedMotion()` fallback.
+- README screenshots are embedded from `docs/screenshots/` using the demo portfolio VTI 60%, BND 30%, VXUS 10%.
+
+Verification passed: `npm run lint`; `npm test` (17 tests); `npm run build`
+(non-failing `rolldown:vite-resolve` plugin timing warning only); manual
+accent/light-mode scans; Playwright Standard smoke covering Login, Register,
+Dashboard, Portfolio Builder, Analysis, Monte Carlo, Backtest, Compare,
+dark-mode toggle, chart SVG rendering, tablet icon rail, and mobile drawer.
+
+Next: commit/push Phase 8b and monitor CI.
+
 ## State as of 2026-06-08 (Phase 8a Infra complete; Phase 8b next)
 
 Phase 8a is implemented and verified:
