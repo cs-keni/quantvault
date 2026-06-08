@@ -126,20 +126,28 @@ class MarketDataService:
     def _fetch_and_process_returns(
         self, tickers: list[str], period: str
     ) -> tuple[pd.DataFrame, list[str]]:
-        """Sync: download OHLCV, compute daily pct returns, apply data quality."""
-        download_arg: str | list[str] = tickers[0] if len(tickers) == 1 else tickers
-        raw: pd.DataFrame = yf.download(
-            download_arg, period=period, progress=False, auto_adjust=True, session=_YF_SESSION
-        )
+        """Sync: fetch OHLCV per-ticker via Ticker.history(), compute daily pct returns.
 
-        if raw.empty:
+        Uses Ticker.history() instead of yf.download() because download() is
+        more aggressively blocked by Yahoo Finance on cloud provider IPs.
+        """
+        frames: dict[str, pd.Series] = {}
+        for ticker in tickers:
+            try:
+                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(
+                    period=period, auto_adjust=True
+                )
+                if not hist.empty:
+                    frames[ticker] = hist["Close"]
+                else:
+                    _logger.warning("Empty history for ticker=%s period=%s", ticker, period)
+            except Exception as exc:
+                _logger.warning("Failed to fetch ticker=%s: %s", ticker, exc)
+
+        if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
 
-        if isinstance(raw.columns, pd.MultiIndex):
-            close: pd.DataFrame = raw["Close"]
-        else:
-            close = raw[["Close"]].rename(columns={"Close": tickers[0]})
-
+        close: pd.DataFrame = pd.DataFrame(frames)
         returns: pd.DataFrame = close.pct_change().iloc[1:]
         return self._apply_data_quality(returns, tickers)
 
@@ -155,23 +163,24 @@ class MarketDataService:
         requests through `end + 1 calendar day` to include the user's requested
         final trading day when it exists.
         """
-        download_arg: str | list[str] = tickers[0] if len(tickers) == 1 else tickers
-        raw: pd.DataFrame = yf.download(
-            download_arg,
-            start=start.isoformat(),
-            end=(end + timedelta(days=1)).isoformat(),
-            progress=False,
-            auto_adjust=True,
-            session=_YF_SESSION,
-        )
+        frames: dict[str, pd.Series] = {}
+        end_exclusive = (end + timedelta(days=1)).isoformat()
+        for ticker in tickers:
+            try:
+                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(
+                    start=start.isoformat(), end=end_exclusive, auto_adjust=True
+                )
+                if not hist.empty:
+                    frames[ticker] = hist["Close"]
+                else:
+                    _logger.warning("Empty history for ticker=%s start=%s end=%s", ticker, start, end)
+            except Exception as exc:
+                _logger.warning("Failed to fetch ticker=%s: %s", ticker, exc)
 
-        if raw.empty:
+        if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
 
-        if isinstance(raw.columns, pd.MultiIndex):
-            close: pd.DataFrame = raw["Close"]
-        else:
-            close = raw[["Close"]].rename(columns={"Close": tickers[0]})
+        close: pd.DataFrame = pd.DataFrame(frames)
 
         returns: pd.DataFrame = close.pct_change().iloc[1:]
         return self._apply_data_quality(returns, tickers)
@@ -249,13 +258,10 @@ class MarketDataService:
             return 0.04
 
     def _fetch_rfr(self) -> float:
-        raw: pd.DataFrame = yf.download("^TNX", period="5d", progress=False, auto_adjust=True, session=_YF_SESSION)
-        if raw.empty:
+        hist: pd.DataFrame = yf.Ticker("^TNX", session=_YF_SESSION).history(period="5d", auto_adjust=True)
+        if hist.empty:
             raise ValueError("^TNX returned empty DataFrame")
-        close_col = raw["Close"]
-        if isinstance(close_col, pd.DataFrame):
-            close_col = close_col.iloc[:, 0]
-        return float(close_col.iloc[-1]) / 100
+        return float(hist["Close"].iloc[-1]) / 100
 
     async def get_ticker_info(self, ticker: str) -> dict[str, Any]:
         """Fetch company metadata (name, sector, industry, market cap, currency, exchange)."""
@@ -290,12 +296,10 @@ class MarketDataService:
         )
 
     def _fetch_quote(self, ticker: str) -> dict[str, Any]:
-        raw: pd.DataFrame = yf.download(ticker, period="2d", progress=False, auto_adjust=True, session=_YF_SESSION)
-        if raw.empty:
+        hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(period="2d", auto_adjust=True)
+        if hist.empty:
             raise ValueError(f"No quote data for {ticker}")
-        prices = raw["Close"]
-        if isinstance(prices, pd.DataFrame):
-            prices = prices.iloc[:, 0]
+        prices = hist["Close"]
         last = float(prices.iloc[-1])
         prev = float(prices.iloc[-2]) if len(prices) >= 2 else last
         change = last - prev
@@ -337,10 +341,8 @@ class MarketDataService:
 
         def _check(ticker: str) -> bool:
             try:
-                raw: pd.DataFrame = yf.download(
-                    ticker, period="5d", progress=False, auto_adjust=True, session=_YF_SESSION
-                )
-                return not raw.empty
+                hist: pd.DataFrame = yf.Ticker(ticker, session=_YF_SESSION).history(period="5d", auto_adjust=True)
+                return not hist.empty
             except Exception:
                 return False
 
