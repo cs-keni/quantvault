@@ -23,3 +23,5 @@ services:
         value: "30"
       - key: REFRESH_TOKEN_EXPIRE_DAYS
         value: "7"
+      - key: TIINGO_API_KEY
+        sync: false

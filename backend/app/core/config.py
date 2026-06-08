@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # that's fine for a single-service demo deployment.
     USE_CELERY: bool = True
 
+    # Market data: Tiingo API key for cloud deployments.
+    # Yahoo Finance blocks Render/cloud IPs at the network level.
+    # Sign up free at https://tiingo.com — 1000 requests/day, 50 tickers/day.
+    # Leave empty for local dev (Yahoo Finance works fine locally).
+    TIINGO_API_KEY: str = ""
+
     @property
     def cors_origins(self) -> list[str]:
         val = self.CORS_ORIGINS.strip()

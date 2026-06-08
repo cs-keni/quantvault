@@ -1,14 +1,12 @@
-"""Market data service: Stooq CSV API for price history, Redis caching.
+"""Market data service: Tiingo REST API (cloud) or Yahoo Finance (local), Redis caching.
 
-Yahoo Finance aggressively blocks requests from cloud provider IPs (Render, AWS,
-GCP) at the network level regardless of User-Agent or endpoint. Stooq is a
-Polish financial data provider that is not IP-restricted and provides equivalent
-OHLCV history for US equities and ETFs via a simple CSV download endpoint.
-yfinance is kept only for company metadata (ticker info) and search, which use
-different Yahoo Finance endpoints that are less restricted.
+Yahoo Finance and Stooq both block requests from cloud provider IPs (Render, AWS).
+When TIINGO_API_KEY is set, all price history fetches go to Tiingo's REST API, which
+is explicitly designed for server-side/cloud use (free tier: 1000 req/day, 50 tickers/day).
+When TIINGO_API_KEY is empty (local dev), Yahoo Finance is used directly.
 
-Stooq API: https://stooq.com/q/d/l/?s={symbol}&d1=YYYYMMDD&d2=YYYYMMDD&i=d
-Returns CSV with columns: Date, Open, High, Low, Close, Volume
+yfinance is kept for ticker info and search (Yahoo Finance metadata endpoints that are
+less aggressively blocked even on cloud, and fall back gracefully if they fail).
 """
 
 import asyncio
@@ -25,12 +23,11 @@ import requests
 import yfinance as yf
 from fastapi import Depends
 
+from app.core.config import settings
 from app.core.redis import get_redis
 
 _logger = logging.getLogger(__name__)
 
-# Used only for yfinance ticker info / search — metadata endpoints that are
-# less IP-restricted than the price history endpoints.
 _YF_SESSION = requests.Session()
 _YF_SESSION.headers.update(
     {
@@ -44,7 +41,7 @@ _YF_SESSION.headers.update(
     }
 )
 
-_STOOQ_URL = "https://stooq.com/q/d/l/"
+_TIINGO_BASE = "https://api.tiingo.com/tiingo/daily"
 
 _PERIOD_DELTAS: dict[str, timedelta] = {
     "1mo": timedelta(days=35),
@@ -57,37 +54,17 @@ _PERIOD_DELTAS: dict[str, timedelta] = {
 T = TypeVar("T")
 
 
-def _to_stooq(ticker: str) -> str:
-    """Convert a standard US ticker symbol to Stooq's format (append .US)."""
-    return f"{ticker.upper()}.US"
-
-
 def _period_to_dates(period: str) -> tuple[date, date]:
     delta = _PERIOD_DELTAS.get(period, timedelta(days=370))
     today = date.today()
     return today - delta, today
 
 
-def _fetch_stooq_csv(symbol: str, start: date, end: date) -> pd.DataFrame:
-    """Fetch OHLCV CSV from Stooq's download endpoint. Returns empty DataFrame on failure."""
-    params = {
-        "s": symbol,
-        "d1": start.strftime("%Y%m%d"),
-        "d2": end.strftime("%Y%m%d"),
-        "i": "d",
-    }
-    resp = requests.get(_STOOQ_URL, params=params, timeout=15)
-    resp.raise_for_status()
-    df = pd.read_csv(io.StringIO(resp.text), parse_dates=["Date"], index_col="Date")
-    df = df.sort_index()
-    return df
-
-
 class MarketDataService:
     """Fetch and cache market data.
 
-    Price history: Stooq via pandas_datareader (not IP-blocked on cloud).
-    Metadata / search: yfinance (different Yahoo Finance endpoints).
+    Price history: Tiingo REST API when TIINGO_API_KEY is set; Yahoo Finance otherwise.
+    Metadata / search: yfinance (different Yahoo Finance endpoints, less restricted).
     Cache key namespace: ``qv:mds:`` — avoids Celery's ``celery-task-meta-*``
     keys sharing Redis DB 0 (architecture decision #23).
     """
@@ -96,9 +73,9 @@ class MarketDataService:
     _RFR_TTL = 86_400  # 24 h
     _INFO_TTL = 604_800  # 7 d
     _QUOTE_TTL = 900  # 15 min
-    _MAX_GAP = 5  # max consecutive NaN days before a ticker is dropped
-    _FETCH_TIMEOUT = 30.0  # seconds — caps blocking calls in asyncio.to_thread
-    _VALIDATE_TIMEOUT = 15.0  # shorter per-ticker timeout for batch validation
+    _MAX_GAP = 5
+    _FETCH_TIMEOUT = 30.0
+    _VALIDATE_TIMEOUT = 15.0
     _SEARCH_MAX_RESULTS = 10
 
     def __init__(self, redis_client: redis.asyncio.Redis) -> None:
@@ -116,17 +93,10 @@ class MarketDataService:
         serialize: Callable[[T], str],
         deserialize: Callable[[str], T],
     ) -> T:
-        """Generic cache-get / miss / set helper.
-
-        On any Redis error or deserialization failure: log a warning and fall
-        through to a live fetch (cache is optional — degrades speed, not
-        correctness).
-        """
         try:
             cached = await self._redis.get(key)
             if cached is not None:
-                raw = cached.decode()
-                return deserialize(raw)
+                return deserialize(cached.decode())
         except (redis.RedisError, json.JSONDecodeError, ValueError, UnicodeDecodeError) as exc:
             _logger.warning("cache read failed key=%s: %s", key, exc)
 
@@ -165,34 +135,70 @@ class MarketDataService:
         result: pd.DataFrame = returns[valid_cols].ffill().dropna(how="all")
         return result, dropped
 
-    def _stooq_close(self, ticker: str, start: date, end: date) -> pd.Series | None:
-        """Fetch Close price series for one ticker from Stooq. Returns None on failure."""
+    def _tiingo_close(self, ticker: str, start: date, end: date) -> pd.Series | None:
+        """Fetch daily close from Tiingo REST API. Works from cloud IPs."""
+        url = f"{_TIINGO_BASE}/{ticker.upper()}/prices"
+        params = {
+            "startDate": start.isoformat(),
+            "endDate": end.isoformat(),
+            "token": settings.TIINGO_API_KEY,
+        }
         try:
-            raw = _fetch_stooq_csv(_to_stooq(ticker), start, end)
-            if raw.empty or "Close" not in raw.columns:
-                _logger.warning("Empty Stooq data for ticker=%s", ticker)
+            resp = requests.get(url, params=params, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            if not data:
+                _logger.warning("Tiingo returned empty data for ticker=%s", ticker)
                 return None
-            return raw["Close"]
+            df = pd.DataFrame(data)
+            # Tiingo dates: "2024-01-02T00:00:00+00:00" — strip timezone
+            df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
+            df = df.set_index("date").sort_index()
+            return df["close"]
         except Exception as exc:
-            _logger.warning("Stooq fetch failed ticker=%s: %s", ticker, exc)
+            _logger.warning("Tiingo fetch failed ticker=%s: %s", ticker, exc)
             return None
+
+    def _yahoo_close(self, ticker: str, start: date, end: date) -> pd.Series | None:
+        """Fetch daily close from Yahoo Finance. Works locally, blocked on cloud."""
+        try:
+            end_exclusive = (end + timedelta(days=1)).isoformat()
+            hist = yf.Ticker(ticker, session=_YF_SESSION).history(
+                start=start.isoformat(), end=end_exclusive, auto_adjust=True
+            )
+            if hist.empty:
+                _logger.warning("Yahoo Finance empty for ticker=%s", ticker)
+                return None
+            idx = hist.index
+            if hasattr(idx, "tz") and idx.tz is not None:
+                hist.index = idx.tz_localize(None)
+            return hist["Close"]
+        except Exception as exc:
+            _logger.warning("Yahoo Finance fetch failed ticker=%s: %s", ticker, exc)
+            return None
+
+    def _close_series(self, ticker: str, start: date, end: date) -> pd.Series | None:
+        """Route to Tiingo (if API key set) or Yahoo Finance (local dev)."""
+        if settings.TIINGO_API_KEY:
+            return self._tiingo_close(ticker, start, end)
+        return self._yahoo_close(ticker, start, end)
 
     def _fetch_and_process_returns(
         self, tickers: list[str], period: str
     ) -> tuple[pd.DataFrame, list[str]]:
-        """Sync: fetch Close prices from Stooq per ticker, compute daily pct returns."""
+        """Sync: fetch Close prices per ticker, compute daily pct returns."""
         start, end = _period_to_dates(period)
         frames: dict[str, pd.Series] = {}
         for ticker in tickers:
-            series = self._stooq_close(ticker, start, end)
+            series = self._close_series(ticker, start, end)
             if series is not None:
                 frames[ticker] = series
 
         if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
 
-        close: pd.DataFrame = pd.DataFrame(frames)
-        returns: pd.DataFrame = close.pct_change().iloc[1:]
+        close = pd.DataFrame(frames)
+        returns = close.pct_change().iloc[1:]
         return self._apply_data_quality(returns, tickers)
 
     def _fetch_and_process_returns_by_date(
@@ -201,18 +207,18 @@ class MarketDataService:
         start: date,
         end: date,
     ) -> tuple[pd.DataFrame, list[str]]:
-        """Sync: fetch date-bounded Close prices from Stooq, compute returns."""
+        """Sync: fetch date-bounded Close prices, compute returns."""
         frames: dict[str, pd.Series] = {}
         for ticker in tickers:
-            series = self._stooq_close(ticker, start, end)
+            series = self._close_series(ticker, start, end)
             if series is not None:
                 frames[ticker] = series
 
         if not frames:
             return pd.DataFrame(columns=tickers), list(tickers)
 
-        close: pd.DataFrame = pd.DataFrame(frames)
-        returns: pd.DataFrame = close.pct_change().iloc[1:]
+        close = pd.DataFrame(frames)
+        returns = close.pct_change().iloc[1:]
         return self._apply_data_quality(returns, tickers)
 
     # ------------------------------------------------------------------ #
@@ -265,11 +271,10 @@ class MarketDataService:
         return df[surviving], dropped
 
     async def get_risk_free_rate(self) -> float:
-        """Fetch the annualized risk-free rate.
+        """Fetch the annualized risk-free rate (10-year Treasury yield / 100).
 
-        Tries yfinance ^TNX first (10-year Treasury yield, % / 100), then
-        falls back to a hardcoded approximate current rate. Decision #25:
-        divide by 100, NOT by 10.
+        Tries ^TNX via Yahoo Finance, falls back to hardcoded 0.043.
+        Decision #25: divide by 100, NOT by 10.
         """
         try:
             return await self._cache_through(
@@ -284,24 +289,24 @@ class MarketDataService:
             return 0.043
 
     def _fetch_rfr(self) -> float:
-        # Try yfinance first (different endpoint, sometimes less blocked)
         try:
             hist = yf.Ticker("^TNX", session=_YF_SESSION).history(period="5d", auto_adjust=True)
             if not hist.empty:
                 return float(hist["Close"].iloc[-1]) / 100
         except Exception as exc:
-            _logger.warning("yfinance rfr failed, trying Stooq: %s", exc)
+            _logger.warning("yfinance rfr failed: %s", exc)
 
-        # Stooq 10-year US Treasury yield
-        try:
-            start, end = _period_to_dates("1mo")
-            raw = _fetch_stooq_csv("10usy.b", start, end)
-            if not raw.empty and "Close" in raw.columns:
-                return float(raw["Close"].iloc[-1]) / 100
-        except Exception as exc:
-            _logger.warning("Stooq rfr failed, using hardcoded fallback: %s", exc)
+        # Try Tiingo for TNX if available
+        if settings.TIINGO_API_KEY:
+            try:
+                start, end = _period_to_dates("1mo")
+                series = self._tiingo_close("TNX", start, end)
+                if series is not None and not series.empty:
+                    return float(series.iloc[-1]) / 100
+            except Exception as exc:
+                _logger.warning("Tiingo rfr failed: %s", exc)
 
-        return 0.043  # approximate current 10-year yield
+        return 0.043
 
     async def get_ticker_info(self, ticker: str) -> dict[str, Any]:
         """Fetch company metadata (name, sector, industry, market cap, currency, exchange)."""
@@ -349,7 +354,7 @@ class MarketDataService:
 
     def _fetch_quote(self, ticker: str) -> dict[str, Any]:
         start, end = _period_to_dates("1mo")
-        series = self._stooq_close(ticker, start, end)
+        series = self._close_series(ticker, start, end)
         if series is None or series.empty:
             raise ValueError(f"No quote data for {ticker}")
         last = float(series.iloc[-1])
@@ -389,15 +394,12 @@ class MarketDataService:
             return []
 
     async def validate_tickers(self, tickers: list[str]) -> tuple[list[str], list[str]]:
-        """Check which tickers return data from Stooq."""
+        """Check which tickers return data."""
         start, end = _period_to_dates("1mo")
 
         def _check(ticker: str) -> bool:
-            try:
-                raw = _fetch_stooq_csv(_to_stooq(ticker), start, end)
-                return not raw.empty
-            except Exception:
-                return False
+            series = self._close_series(ticker, start, end)
+            return series is not None and not series.empty
 
         raw_results = await asyncio.gather(
             *[
