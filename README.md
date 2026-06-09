@@ -5,17 +5,66 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115.6-009688)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 
-QuantVault is a portfolio analytics and risk modeling platform built to
-demonstrate quant finance engineering depth for investment-management roles.
-It combines production-style web architecture with financial math that is
-specific enough to be evaluated: Markowitz efficient frontier optimization,
-historical VaR/CVaR, fat-tailed Monte Carlo simulation, and backtesting against
-real market data.
+QuantVault is a portfolio analytics and risk modeling platform for evaluating
+multi-asset portfolios with real market data. It combines a production-style
+FastAPI/React architecture with finance-specific engines for Markowitz
+efficient frontier optimization, historical VaR/CVaR, fat-tailed Monte Carlo
+simulation, and historical backtesting.
 
-The project narrative is direct: an investor should be able to understand the
-risk exposure, downside behavior, and allocation tradeoffs of a portfolio
-instead of only seeing a static brokerage balance. QuantVault turns holdings
-into measurable risk and return profiles, then exposes the assumptions in code.
+The motivation is practical: a brokerage account can show balances and holdings,
+but it usually does not explain allocation risk, downside exposure, correlation,
+or how a portfolio might behave under different return paths. QuantVault turns
+holdings into measurable risk and return profiles, then exposes the assumptions
+in code so the results can be inspected, tested, and explained.
+
+> Status: pre-deploy audit complete. Backend, frontend, migration, and Docker
+> checks are passing locally. Live demo screenshots and video are the next
+> portfolio-presentation step.
+
+## Demo
+
+- Live app: _add deployment URL_
+- Demo video: _add video URL_
+- Demo portfolio used in screenshots: **VTI 60% / BND 30% / VXUS 10%**
+
+Recommended demo flow:
+
+1. Register or log in.
+2. Create the VTI/BND/VXUS portfolio.
+3. Review dashboard metrics: return, volatility, Sharpe, VaR, CVaR, beta, and
+   drawdown.
+4. Run efficient frontier analysis to compare the current allocation against
+   min-volatility and max-Sharpe portfolios.
+5. Run Monte Carlo simulation to show percentile outcomes and downside paths.
+6. Run a historical backtest against the selected benchmark.
+7. Compare portfolios side by side.
+
+## Why This Project Matters
+
+QuantVault is meant to show more than CRUD app fluency. For a student or new
+graduate, it demonstrates the ability to connect software engineering with a
+domain where correctness, assumptions, and communication matter.
+
+What it proves technically:
+
+- Building a full-stack app with authentication, async database access,
+  migrations, caching, background-task patterns, charts, tests, Docker, and CI.
+- Separating financial calculations into service modules with focused tests
+  instead of hiding math inside route handlers.
+- Handling realistic deployment constraints, including managed Postgres,
+  managed Redis, cloud-host market-data limitations, CORS, and frontend/backend
+  environment separation.
+
+What it teaches practically:
+
+- A student with real index-fund holdings can use it to understand allocation
+  concentration, risk-adjusted returns, drawdowns, and tail-risk estimates.
+- It does **not** replace professional financial advice or a brokerage platform,
+  but it is useful for learning why "my portfolio is up" is a much weaker
+  statement than "I understand my portfolio's volatility, downside risk,
+  benchmark behavior, and allocation tradeoffs."
+- It creates interview material that can be explained from both sides: the
+  engineering system and the financial model.
 
 ## Architecture
 
@@ -49,6 +98,25 @@ Market data is fetched from Tiingo when `TIINGO_API_KEY` is configured, which is
 the production path for cloud hosts where Yahoo Finance blocks shared IP ranges.
 Local development can leave `TIINGO_API_KEY` empty and use yfinance/Yahoo Finance
 instead. Raw market prices are not persisted in Postgres.
+
+## Technical Highlights
+
+- **Real market data path**: Tiingo in cloud deployments, yfinance/Yahoo for
+  local development, with Redis TTL caching for historical prices, quotes, and
+  metadata.
+- **Async FastAPI backend**: SQLAlchemy 2.0 async sessions, Alembic migrations,
+  JWT auth, and route-level ownership checks.
+- **Task architecture**: Celery task definitions for efficient frontier, Monte
+  Carlo, and backtests. Local Docker Compose runs a worker; Render demo deploys
+  as a single service with eager execution.
+- **Financial math services**: portfolio metrics, risk analytics, optimization,
+  simulation, and backtesting live in dedicated service files with targeted
+  tests.
+- **Production-oriented frontend**: protected routes, auth refresh flow,
+  TanStack Query data fetching, responsive app shell, chart components, and
+  typed API boundaries.
+- **Verification**: backend unit/API tests, frontend tests, lint/type checks,
+  Alembic drift checks, Docker Compose build, and GitHub Actions CI.
 
 ## Financial Concepts
 
@@ -86,6 +154,16 @@ at year boundaries and compound forward.
 - Backtesting with CAGR, drawdown, alpha, benchmark comparison, and equity
   curve output.
 - Portfolio comparison across side-by-side risk metrics.
+
+## Example Questions QuantVault Answers
+
+- Is this allocation mostly equity risk, bond risk, or diversified risk?
+- How did this portfolio behave historically against a benchmark?
+- What drawdown would I have experienced in the backtest window?
+- How much return did the portfolio earn per unit of volatility?
+- How do VaR and CVaR describe the left tail of recent historical returns?
+- What allocations sit on the efficient frontier for these assets?
+- Under fat-tailed simulated returns, what range of outcomes should I expect?
 
 ## Local Development
 
@@ -175,3 +253,9 @@ Demo portfolio: VTI 60%, BND 30%, VXUS 10%.
 ![Analysis page with efficient frontier chart](docs/screenshots/analysis-frontier.png)
 
 ![Monte Carlo paths chart](docs/screenshots/monte-carlo-paths.png)
+
+## Disclaimer
+
+QuantVault is an educational software project and portfolio showcase. It is not
+financial advice, does not execute trades, and should not be used as the sole
+basis for investment decisions.

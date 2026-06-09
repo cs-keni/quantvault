@@ -55,6 +55,11 @@ backend pytest `158 passed, 3 skipped`, Alembic `check` clean, and full
 warning. The earlier targeted pytest failure was due to stopped local Postgres,
 not app behavior.
 
+**2026-06-09 README portfolio pass:** README was updated as a showcase artifact:
+clearer project pitch, demo placeholders, recommended demo flow, why the project
+matters for a student/new-grad, technical highlights, example questions, and an
+educational/non-advice disclaimer. No code or functionality changed.
+
 **2026-06-09 Backend reviewer audit:** Found and fixed two small backend
 correctness issues. Monte Carlo submissions now pre-generate `task_id` and use
 Celery `apply/apply_async(..., task_id=...)`, matching backtest's orphan-task

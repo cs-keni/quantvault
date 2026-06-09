@@ -3,6 +3,17 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-09 — README portfolio positioning pass
+
+Updated README as a portfolio/eportfolio-facing artifact without changing
+application functionality. Added a stronger opening pitch, live demo/video
+placeholders, recommended demo flow, "Why This Project Matters" section for the
+student/new-grad narrative, technical highlights, example questions the app
+answers, and an educational/non-advice disclaimer.
+
+Checks:
+- `git diff --check` — passed
+
 ## 2026-06-09 — Pre-deploy audit continuation and final reruns
 
 Continued after the model-capacity interruption, reviewed the existing dirty
