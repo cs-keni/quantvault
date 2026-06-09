@@ -363,7 +363,9 @@ def compute_frontier(self: Any, tickers: list[str], period: str) -> dict[str, An
     """
     normalized_tickers = sorted(ticker.upper() for ticker in tickers)
     cache_key = build_frontier_cache_key(normalized_tickers, period)
-    redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    # rediss:// (Upstash TLS) requires explicit ssl_cert_reqs in redis-py's sync client.
+    ssl_kwargs = {"ssl_cert_reqs": "CERT_NONE"} if settings.REDIS_URL.startswith("rediss://") else {}
+    redis_client = redis.Redis.from_url(settings.REDIS_URL, **ssl_kwargs)
     try:
         cached = cast(bytes | str | None, redis_client.get(cache_key))
         if cached is not None:

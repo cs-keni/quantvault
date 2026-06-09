@@ -81,7 +81,7 @@ def calculate_var_cvar(
     Formula:
         sorted_r  = sort(annual_slice)          [ascending; worst first]
         var_index = max(int((1-conf) * N), 1)
-        VaR       = sorted_r[var_index]
+        VaR       = sorted_r[min(var_index, N-1)]
         CVaR      = mean(sorted_r[0 : var_index])
     """
     arr = np.asarray(portfolio_returns, dtype=np.float64)
@@ -90,7 +90,7 @@ def calculate_var_cvar(
     n = len(sorted_returns)
 
     var_index = max(int((1 - confidence) * n), 1)
-    var = float(sorted_returns[var_index])
+    var = float(sorted_returns[min(var_index, n - 1)])
     cvar = float(sorted_returns[:var_index].mean())
 
     return {"var": var, "cvar": cvar, "confidence": confidence, "n_periods": n}

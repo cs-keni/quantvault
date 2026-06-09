@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import redis.asyncio
+from celery.result import EagerResult
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -231,8 +232,33 @@ async def submit_frontier(
     if cached is not None:
         return FrontierSubmitResponse(status="SUCCESS", result=cached)
 
-    task = compute_frontier.delay(payload.tickers, payload.period)
-    return FrontierSubmitResponse(task_id=task.id, status="PENDING")
+    task_id = str(uuid.uuid4())
+    try:
+        if celery_app.conf.task_always_eager:
+            # apply() skips Kombu producer acquisition, which would otherwise
+            # try to connect to the Redis broker even in eager mode.
+            task = compute_frontier.apply(args=[payload.tickers, payload.period], task_id=task_id)
+        else:
+            task = compute_frontier.apply_async(args=[payload.tickers, payload.period], task_id=task_id)
+    except Exception as exc:
+        _logger.exception("failed to dispatch frontier task task_id=%s", task_id)
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to dispatch frontier task.",
+        ) from exc
+
+    if isinstance(task, EagerResult):
+        if task.successful():
+            return FrontierSubmitResponse(
+                status="SUCCESS",
+                result=FrontierResult.model_validate(task.result),
+            )
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Frontier analysis failed.",
+        )
+
+    return FrontierSubmitResponse(task_id=task_id, status="PENDING")
 
 
 @router.get("/frontier/{task_id}", response_model=FrontierTaskStatus)

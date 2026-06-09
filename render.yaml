@@ -19,6 +19,8 @@ services:
         value: production
       - key: USE_CELERY
         value: "false"
+      - key: PORT
+        value: "8000"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "30"
       - key: REFRESH_TOKEN_EXPIRE_DAYS

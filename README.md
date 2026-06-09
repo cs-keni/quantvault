@@ -10,7 +10,7 @@ demonstrate quant finance engineering depth for investment-management roles.
 It combines production-style web architecture with financial math that is
 specific enough to be evaluated: Markowitz efficient frontier optimization,
 historical VaR/CVaR, fat-tailed Monte Carlo simulation, and backtesting against
-real Yahoo Finance market data.
+real market data.
 
 The project narrative is direct: an investor should be able to understand the
 risk exposure, downside behavior, and allocation tradeoffs of a portfolio
@@ -32,17 +32,23 @@ into measurable risk and return profiles, then exposes the assumptions in code.
               /api/v1/*
           /       |        \
          v        v         v
- PostgreSQL 16  Redis 7   Celery worker
- portfolios,   market     efficient frontier,
- users, task   data +     Monte Carlo,
- results       task cache backtest tasks
+ PostgreSQL 16  Redis 7   analytics tasks
+ portfolios,   market     Celery worker locally,
+ users, task   data +     eager execution on Render
+ results       task cache
 ```
 
 The frontend uses React, TanStack Query, Zustand, Tailwind CSS, and Recharts.
 The backend uses FastAPI, SQLAlchemy 2.0 async sessions, Alembic migrations,
-PyJWT authentication, Redis caching, and Celery for CPU-bound analytics tasks.
-Market data is fetched from Yahoo Finance with yfinance and cached in Redis;
-raw market prices are not persisted in Postgres.
+PyJWT authentication, Redis caching, and Celery task definitions for CPU-bound
+analytics tasks. Local Docker Compose runs a Celery worker. The single-service
+Render deployment sets `USE_CELERY=false`, runs those tasks synchronously in the
+request process, and returns completed task results directly.
+
+Market data is fetched from Tiingo when `TIINGO_API_KEY` is configured, which is
+the production path for cloud hosts where Yahoo Finance blocks shared IP ranges.
+Local development can leave `TIINGO_API_KEY` empty and use yfinance/Yahoo Finance
+instead. Raw market prices are not persisted in Postgres.
 
 ## Financial Concepts
 
@@ -137,6 +143,28 @@ Docker:
 ```bash
 docker compose build
 ```
+
+## Deployment
+
+The intended demo deployment is:
+
+- **Supabase** for Postgres. Set Render `DATABASE_URL` to the async SQLAlchemy
+  URL, for example `postgresql+asyncpg://...`.
+- **Upstash** for Redis. Set Render `REDIS_URL` to the Upstash `rediss://...`
+  URL.
+- **Render** for the backend Docker web service using `render.yaml`.
+- **Vercel** for the frontend in `frontend/`, with `VITE_API_BASE_URL` set to
+  the Render backend origin, for example `https://quantvault-api.onrender.com`.
+
+Required production env vars:
+
+- Render: `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `CORS_ORIGINS`,
+  `USE_CELERY=false`, `PORT=8000`, `TIINGO_API_KEY`.
+- Vercel: `VITE_API_BASE_URL`.
+
+Set `CORS_ORIGINS` to the deployed Vercel origin exactly, comma-separated if
+there is more than one allowed origin. `frontend/vercel.json` rewrites all
+frontend routes to `index.html` so direct React Router URLs work.
 
 ## Screenshots
 

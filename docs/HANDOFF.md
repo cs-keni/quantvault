@@ -5,6 +5,75 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-09 (Continuation after capacity interruption)
+
+Codex re-reviewed the dirty pre-deploy audit diff, started local Docker
+Postgres/Redis, and reran the changed-area and deploy checks. Current settled
+verification: `tests/test_efficient_frontier.py tests/test_risk_metrics.py
+tests/test_simulation.py -q` — 64 passed; full backend `pytest -q` — 158
+passed, 3 skipped; `alembic check` — no new upgrade operations; full
+`docker compose build` — backend, celery-worker, and frontend images built.
+Frontend lint/test/build had already passed in the same audit continuation.
+
+The only rerun failure before starting services was `ConnectionRefusedError` to
+local Postgres on `127.0.0.1:5432`; it cleared once `docker compose up -d db
+redis` was run. The older late-suite `UndefinedTableError` remains a local
+schema-state watch item after interrupted runs, but it did not reproduce in the
+final full backend suite.
+
+## State as of 2026-06-09 (Backend reviewer pre-deploy audit)
+
+Backend review found no auth/data-ownership bypasses in the checked portfolio,
+simulation, backtest, or analysis routes. Two small correctness fixes are in:
+Monte Carlo submission now pre-generates and persists `task_id` before dispatch,
+using `apply/apply_async(..., task_id=...)` like backtests; and historical
+VaR/CVaR now handles a one-return sample without indexing past the end.
+
+Checks passed: backend `ruff check app tests`, backend `mypy app`,
+`tests/test_simulation.py`, `tests/test_backtest.py`, and the single simulation
+wrong-user ownership regression. A combined simulation+risk pytest run produced
+one late auth-helper failure after 50 passes; rerunning the exact failing test
+passed. This matches the local DB/schema-state flake pattern already recorded in
+the QA audit, not a confirmed app regression.
+
+## State as of 2026-06-09 (QA/regression pre-deploy audit)
+
+QA/regression audit passed on the current dirty deployment worktree. Checks run:
+frontend `npm run lint`, `npm test` (`17 passed`), and `npm run build`; backend
+`ruff check app tests alembic`, `mypy app`, and full `pytest -q` (`158 passed,
+3 skipped`); `alembic check`; and `docker compose build`.
+
+One local flake was observed: the first full backend pytest run failed late in
+four simulation API tests with `UndefinedTableError: relation "users" does not
+exist`. `tests/test_simulation.py` passed in isolation immediately after, and
+the full backend suite passed on rerun. Treat this as a test DB/schema-state
+watch item after interrupted local runs, not a deploy blocker unless it repeats.
+Live-network tests remain skipped unless `INTEGRATION_TESTS=1` is set; no live
+Render/Vercel/Supabase/Upstash/Tiingo smoke was run.
+
+## State as of 2026-06-09 (Deployment/docs audit)
+
+Deployment/docs audit found two concrete pre-deploy issues and fixed them:
+efficient-frontier POST still used `compute_frontier.delay()` in eager
+single-service mode, which could acquire a Kombu Redis producer on Render even
+with `USE_CELERY=false`; and the frontier task's sync Redis client did not pass
+the Upstash `rediss://` SSL workaround already used by simulation/backtest.
+`submit_frontier()` now uses `apply()` in eager mode and returns `SUCCESS` with
+the result directly; worker mode still uses `apply_async()`. The backend
+entrypoint now binds uvicorn to `${PORT:-8000}`, and `render.yaml` sets
+`PORT=8000`.
+
+README/`.env.example`/AI context now describe the current deploy stack:
+Supabase Postgres, Upstash Redis, Render backend, Vercel frontend,
+`USE_CELERY=false`, `TIINGO_API_KEY`, `VITE_API_BASE_URL`, and exact CORS origin
+requirements.
+
+Verification passed: `backend/.venv/bin/ruff check app tests`;
+`backend/.venv/bin/mypy app`; escalated
+`backend/.venv/bin/pytest tests/test_efficient_frontier.py tests/test_simulation.py tests/test_risk_metrics.py -q`
+— 64 passed. The same focused pytest command timed out in the sandbox on
+`localhost:5432`, matching the known local Docker Postgres sandbox issue.
+
 ## State as of 2026-06-09 (Codex test audit complete)
 
 Codex reviewed the repo context and ran verification. Small drift fixes are in:
@@ -222,7 +291,7 @@ Phase 7 is fully complete. `/qa` Standard tier passed with 2 bugs found and fixe
 **Architecture decisions locked (D1–D5, T1–T3 — see PHASES.md Phase 7 for full table):**
 - Refresh token in localStorage, access token in Zustand memory only (silent refresh on init)
 - Deduplicated refresh lock: `let refreshPromise: Promise<string> | null = null` in apiClient.ts response interceptor — all concurrent 401s queue on one promise; `_retry` flag prevents infinite loop; skip interceptor on `/auth/login` and `/auth/refresh` paths
-- nginx proxy + Vite dev proxy pattern — apiClient.baseURL = `/api/v1` (relative); no VITE_API_BASE_URL build arg needed
+- nginx proxy + Vite dev proxy pattern locally; deployed Vercel frontend sets `VITE_API_BASE_URL` and apiClient uses `${VITE_API_BASE_URL ?? ""}/api/v1`
 - Dashboard redesigned to show risk metrics from GET /portfolios/:id/metrics (no portfolio-value endpoint exists); period toggle uses 1mo/6mo/1y/2y/max (not 1D/1W/1M)
 - Polling stop condition: `!['SUCCESS', 'FAILURE'].includes(status)` — covers STARTED/RETRY Celery states; POST /frontier can return task_id=null + SUCCESS on cache hit (skip polling in that case)
 - /register returns UserRead (not tokens) — auto POST /auth/login after register, then redirect /dashboard

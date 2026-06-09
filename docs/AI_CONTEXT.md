@@ -6,7 +6,7 @@ a key implementation decision changes.
 
 ## What this is
 
-A quantitative portfolio analytics platform: real Yahoo Finance market data,
+A quantitative portfolio analytics platform: real market data,
 Markowitz efficient frontier optimization, Monte Carlo simulation, VaR/CVaR/
 Sharpe/Sortino/Beta risk metrics, and a backtesting engine with tearsheets.
 Built as a portfolio signal piece for investment-management employers — see
@@ -20,9 +20,9 @@ Built as a portfolio signal piece for investment-management employers — see
 | Auth | PyJWT + Passlib(bcrypt) — **not** python-jose (active CVEs) |
 | Async tasks | Celery + Redis (efficient frontier, Monte Carlo, backtest — CPU-bound, must not block the event loop) |
 | Math | NumPy, Pandas, SciPy (`scipy.optimize.minimize`) |
-| Market data | yfinance, Redis-cached (24h historical / 15m quotes / 7d metadata) |
+| Market data | Tiingo in cloud when `TIINGO_API_KEY` is set; yfinance/Yahoo locally; Redis-cached (24h historical / 15m quotes / 7d metadata) |
 | Frontend | React 18 + TypeScript + Vite, Tailwind CSS, Recharts, Zustand, TanStack Query |
-| Infra | PostgreSQL 16, Redis 7, Docker Compose (5 services: backend, frontend, db, redis, celery-worker) |
+| Infra | PostgreSQL 16, Redis 7, Docker Compose locally (backend, frontend, db, redis, celery-worker); Supabase + Upstash + Render + Vercel for demo deploy |
 
 ## Infra State (Phase 8a)
 
@@ -34,6 +34,13 @@ concepts, setup, checks, and deferred screenshots section. Local lint/build/test
 gates and Docker Compose build smoke passed; an isolated five-service compose
 QA boot verified migrations, backend health, frontend-to-backend networking,
 and register/login through nginx `/api`.
+
+Deployment audit update, 2026-06-09: Render single-service mode uses
+`USE_CELERY=false`, so efficient frontier, Monte Carlo, and backtest tasks must
+call Celery `apply()` directly and return/write eager results without acquiring
+a Redis broker producer. Sync Redis clients used inside task bodies must pass
+`ssl_cert_reqs="CERT_NONE"` for Upstash `rediss://` URLs. `entrypoint.sh` binds
+uvicorn to `${PORT:-8000}` and `render.yaml` sets `PORT=8000`.
 
 ## UI State (Phase 8b)
 
@@ -86,7 +93,9 @@ for the full list with rationale. The ones that change *how code is written*:
   tails are the point; contributions inject at year boundary and compound
   forward (the spec's `cumprod` add-to-all approach was financially wrong).
 - **CVaR guard**: `var_index = max(int((1 - confidence) * N), 1)` prevents an
-  empty-slice → NaN on small samples or high confidence levels.
+  empty-slice → NaN on small samples or high confidence levels. VaR lookup is
+  clamped with `min(var_index, N - 1)` so a one-return sample uses the only
+  available observation rather than indexing past the end.
 - **Efficient frontier (Phase 4 — complete)**:
   `optimization_service.py` owns all MPT math and the Celery task
   `compute_frontier`. The task calls `_fetch_and_process_returns()` directly
@@ -112,8 +121,10 @@ for the full list with rationale. The ones that change *how code is written*:
   at year-end after that day's return exactly `years` times. Profit/doubling
   probabilities compare against total outlay (`initial + contribution * years`).
   Dropped tickers from yfinance are task FAILURE, not silent weight
-  re-normalization. Celery DB writes use `asyncio.run()` with a fresh async
-  engine per write.
+  re-normalization. POST pre-generates `task_id` and persists it with the
+  PENDING row before dispatch, then calls `apply/apply_async(..., task_id=...)`
+  to avoid orphaning dispatched work if a later task-id commit fails. Celery DB
+  writes use `asyncio.run()` with a fresh async engine per write.
 - **Backtesting engine (Phase 6 — complete ✅)**:
   `backtest_service.py` owns the pure math engine and Celery task. Results are
   persisted on `backtest_results`; POST creates `PENDING`, Celery writes
@@ -197,7 +208,7 @@ selected 1-year risk metrics side by side. The backend now exposes
 **Token storage:** Refresh token in `localStorage` key `refresh_token`. Access token in Zustand `authStore.accessToken` (memory only, never persisted). On app init: call `silentRefresh()` if localStorage has a token, then GET /auth/me to hydrate user.
 
 **apiClient.ts pattern (full rewrite from stub):**
-- `baseURL: '/api/v1'` (relative — nginx/Vite proxy handles routing; no VITE_API_BASE_URL)
+- `baseURL: '${VITE_API_BASE_URL ?? ""}/api/v1'` — empty locally for nginx/Vite proxy; set `VITE_API_BASE_URL` to the Render origin on Vercel
 - Request interceptor: attach `Authorization: Bearer <accessToken>` from Zustand store
 - Response interceptor: deduplicated refresh lock (`let refreshPromise: Promise<string> | null = null`); on 401, all concurrent requests queue on the same promise; `config._retry` flag prevents re-entry; skip on `/auth/login` and `/auth/refresh` paths
 

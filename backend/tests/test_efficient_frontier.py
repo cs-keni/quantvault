@@ -15,6 +15,7 @@ from app.services.optimization_service import (
     find_min_variance_portfolio,
     generate_efficient_frontier,
 )
+from celery.result import EagerResult
 from httpx import ASGITransport, AsyncClient
 
 
@@ -33,6 +34,36 @@ async def _fake_redis() -> _FakeRedis:
 
 async def _fake_user() -> object:
     return object()
+
+
+def _frontier_result_dict() -> dict[str, object]:
+    return {
+        "tickers": ["VTI", "BND"],
+        "period": "1y",
+        "risk_free_rate": 0.04,
+        "frontier": [
+            {
+                "annual_return": 0.05,
+                "annual_volatility": 0.08,
+                "sharpe_ratio": 0.125,
+                "weights": {"VTI": 0.6, "BND": 0.4},
+            }
+        ],
+        "min_variance": {
+            "annual_return": 0.03,
+            "annual_volatility": 0.05,
+            "sharpe_ratio": -0.2,
+            "weights": {"VTI": 0.2, "BND": 0.8},
+        },
+        "max_sharpe": {
+            "annual_return": 0.07,
+            "annual_volatility": 0.09,
+            "sharpe_ratio": 0.333,
+            "weights": {"VTI": 0.8, "BND": 0.2},
+        },
+        "dropped_tickers": [],
+        "n_trading_days": 252,
+    }
 
 
 @asynccontextmanager
@@ -222,3 +253,62 @@ async def test_frontier_get_failure_serializes_exception(
     body = resp.json()
     assert body["status"] == "FAILURE"
     assert body["error"] == "worker exploded"
+
+
+async def test_frontier_post_eager_mode_returns_success_without_broker(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    def fake_apply(*args: object, **kwargs: object) -> EagerResult:
+        calls.append(("apply", kwargs))
+        return EagerResult("task-id", _frontier_result_dict(), "SUCCESS")
+
+    def fake_apply_async(*args: object, **kwargs: object) -> None:
+        calls.append(("apply_async", kwargs))
+
+    monkeypatch.setattr(analysis.celery_app.conf, "task_always_eager", True)
+    monkeypatch.setattr(analysis.compute_frontier, "apply", fake_apply)
+    monkeypatch.setattr(analysis.compute_frontier, "apply_async", fake_apply_async)
+
+    response = await analysis.submit_frontier(
+        analysis.FrontierRequest(tickers=["VTI", "BND"], period="1y"),
+        object(),
+        _FakeRedis(),
+    )
+
+    assert response.status == "SUCCESS"
+    assert response.task_id is None
+    assert response.result is not None
+    assert response.result.tickers == ["VTI", "BND"]
+    assert [call[0] for call in calls] == ["apply"]
+
+
+async def test_frontier_post_worker_mode_uses_apply_async(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+
+    class FakeAsyncTask:
+        id = "ignored-by-route"
+
+    def fake_apply(*args: object, **kwargs: object) -> None:
+        calls.append(("apply", kwargs))
+
+    def fake_apply_async(*args: object, **kwargs: object) -> FakeAsyncTask:
+        calls.append(("apply_async", kwargs))
+        return FakeAsyncTask()
+
+    monkeypatch.setattr(analysis.celery_app.conf, "task_always_eager", False)
+    monkeypatch.setattr(analysis.compute_frontier, "apply", fake_apply)
+    monkeypatch.setattr(analysis.compute_frontier, "apply_async", fake_apply_async)
+
+    response = await analysis.submit_frontier(
+        analysis.FrontierRequest(tickers=["VTI", "BND"], period="1y"),
+        object(),
+        _FakeRedis(),
+    )
+
+    assert response.status == "PENDING"
+    assert response.task_id is not None
+    assert [call[0] for call in calls] == ["apply_async"]

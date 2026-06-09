@@ -45,7 +45,11 @@ class _FakeTask:
 
 
 def _patch_celery_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(simulation_api.run_simulation, "delay", lambda *args, **kwargs: _FakeTask())
+    monkeypatch.setattr(
+        simulation_api.run_simulation,
+        "apply_async",
+        lambda *args, **kwargs: _FakeTask(),
+    )
 
 
 async def test_monte_carlo_same_seed_reproducible() -> None:
@@ -161,7 +165,7 @@ async def test_simulation_post_valid_request_returns_pending(
     assert resp.status_code == 200
     body = resp.json()
     assert body["simulation_id"]
-    assert body["task_id"] == "fake-task-id"
+    assert uuid.UUID(body["task_id"])
     assert body["status"] == "PENDING"
 
 

@@ -3,6 +3,128 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-09 — Pre-deploy audit continuation and final reruns
+
+Continued after the model-capacity interruption, reviewed the existing dirty
+deployment/backend diff, and reran the deploy checks with local Docker
+Postgres/Redis online.
+
+Checks:
+- `cd backend && .venv/bin/pytest tests/test_efficient_frontier.py tests/test_risk_metrics.py tests/test_simulation.py -q` — 64 passed
+- `cd backend && .venv/bin/pytest -q` — 158 passed, 3 skipped
+- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
+- `docker compose build` — backend, celery-worker, and frontend images built;
+  Docker emitted a non-blocking buildx plugin warning
+- `git diff --check` — passed earlier in the continuation
+- `gbrain sync` — failed because the configured GBrain database host could not
+  resolve: `ENOTFOUND tenant/user postgres.zqmuwysexexhkmynjlwl`
+
+Gotchas:
+- The targeted backend pytest command failed before services were started with
+  `ConnectionRefusedError` to `127.0.0.1:5432`; rerunning after `docker compose
+  up -d db redis` passed. Keep local DB/Redis running for DB-backed tests.
+- GBrain local sync is currently blocked by `~/.gbrain/config.json` connection
+  settings, not by QuantVault code.
+
+## 2026-06-09 — Backend reviewer pre-deploy audit fixes
+
+Backend review focused on auth/data ownership, Celery/eager behavior, market
+data boundaries, and financial math edge cases. Found two bounded fixes:
+
+- `backend/app/api/v1/simulation.py` now pre-generates `task_id` and dispatches
+  Monte Carlo with `apply(..., task_id=...)` / `apply_async(..., task_id=...)`,
+  matching backtest behavior and avoiding a second-commit orphan-task race.
+- `backend/app/services/risk_service.py` clamps VaR lookup to the final
+  available observation when the annual historical-simulation sample has only
+  one return. CVaR still uses the locked non-empty tail slice guard.
+
+Checks:
+- `cd backend && .venv/bin/ruff check app tests` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest tests/test_simulation.py -q` — 21 passed
+- `cd backend && .venv/bin/pytest tests/test_backtest.py -q` — 18 passed, 1 skipped
+- `cd backend && .venv/bin/pytest tests/test_simulation.py::test_simulation_post_with_other_users_portfolio_returns_404 -q` — passed
+
+Gotchas:
+- Do not run DB-backed pytest files in parallel against the same local
+  `quantvault_test` schema; parallel runs raced on Postgres enum creation.
+- A combined escalated `tests/test_simulation.py tests/test_risk_metrics.py`
+  run produced one auth-helper `KeyError` after 50 passes, but the exact failing
+  ownership test passed immediately in isolation. Treat it as the same local
+  test DB/schema-state flake already recorded in the QA audit unless it repeats.
+
+## 2026-06-09 — QA/regression pre-deploy audit
+
+Ran the reproducible pre-deploy gates on the current repo state, including the
+concurrent deployment/docs diff already present in the worktree.
+
+Checks:
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 17 passed
+- `cd frontend && npm run build` — passed; non-failing `rolldown:vite-resolve`
+  plugin timing warning remains
+- `cd backend && .venv/bin/ruff check app tests alembic` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest -q` — first run failed late with four
+  simulation API tests after `users` disappeared from the test DB; rerunning
+  `tests/test_simulation.py` passed, then full backend pytest passed with
+  `158 passed, 3 skipped`
+- `cd backend && .venv/bin/alembic check` — no new upgrade operations detected
+- `docker compose build` — backend, celery-worker, and frontend images built
+
+Residual risks:
+- Live-network tests remain skipped unless `INTEGRATION_TESTS=1` is set.
+- The transient `UndefinedTableError` did not repeat, but it is worth watching
+  if full-suite pytest starts failing after interrupted local runs.
+- This audit did not exercise a live deployed Render/Vercel/Supabase/Upstash/
+  Tiingo environment.
+
+## 2026-06-09 — Deployment/docs audit: Render eager frontier + deploy doc drift
+
+Deployment/docs preflight for Supabase + Upstash + Render + Vercel found two
+small production-readiness issues:
+
+- `backend/app/api/v1/analysis.py` still dispatched efficient-frontier tasks
+  with `compute_frontier.delay()`. In Render `USE_CELERY=false` mode, simulation
+  and backtest already use `apply()` to avoid Kombu broker acquisition; frontier
+  now uses the same pattern and returns `SUCCESS` with the completed result
+  directly.
+- `backend/app/services/optimization_service.py` constructed sync Redis without
+  the Upstash `rediss://` SSL workaround already applied in simulation/backtest.
+  It now passes `ssl_cert_reqs="CERT_NONE"` when the Redis URL starts with
+  `rediss://`.
+- `backend/entrypoint.sh` now binds uvicorn to `${PORT:-8000}` and
+  `render.yaml` sets `PORT=8000`, matching Render Docker port guidance.
+- README, `.env.example`, and shared docs now describe the current deployment
+  stack, Tiingo cloud market-data path, `USE_CELERY=false`, `VITE_API_BASE_URL`,
+  and production env vars.
+
+Checks:
+- `cd backend && .venv/bin/ruff check app tests` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest tests/test_efficient_frontier.py tests/test_simulation.py tests/test_risk_metrics.py -q` — 64 passed when rerun with approved localhost Docker Postgres access; sandboxed run timed out on DB fixture setup
+
+## 2026-06-09 — Frontend pre-deploy audit slice
+
+Reviewed React routes, API client/auth refresh behavior, frontend base URL
+handling, responsive auth surfaces, form/payload shapes, and production build
+behavior. No frontend code changes were needed.
+
+Checks:
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 17 passed
+- `cd frontend && npm run build` — first parallel run hit a WSL/Windows
+  `dist/assets` cleanup race (`ENOTEMPTY`); rerun by itself passed
+- Headless Playwright smoke against Vite dev server — Login/Register rendered
+  on desktop and mobile; unauthenticated `/dashboard` redirected to `/login`;
+  no page errors
+
+Residual risk: this slice did not run a live authenticated browser flow against
+Render/Vercel with real Supabase/Upstash/Tiingo credentials. The remaining
+frontend deploy dependency is exact env alignment: Vercel `VITE_API_BASE_URL`
+must point at the Render origin, and Render `CORS_ORIGINS` must include the
+deployed Vercel origin.
+
 ## 2026-06-09 — Codex test audit: restore backend lint/type/test health
 
 Reviewed QuantVault from the canonical spec and shared handoff, then ran the

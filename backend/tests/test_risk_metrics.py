@@ -113,6 +113,13 @@ async def test_var_cvar_guard_prevents_empty_slice() -> None:
     assert result["cvar"] == pytest.approx(tiny[0], rel=REL)
 
 
+async def test_var_cvar_single_observation_uses_only_return() -> None:
+    result = risk_service.calculate_var_cvar(np.array([-0.02]), confidence=0.99)
+
+    assert result["var"] == pytest.approx(-0.02, rel=REL)
+    assert result["cvar"] == pytest.approx(-0.02, rel=REL)
+
+
 async def test_var_cvar_uses_252day_window() -> None:
     """Long series (>252 days): only the last 252 days are used."""
     # First 100 returns are extreme losses; last 252 are normal.

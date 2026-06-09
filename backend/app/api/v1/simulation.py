@@ -43,6 +43,10 @@ async def submit_monte_carlo_simulation(
         if portfolio is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
 
+    # Pre-generate task_id so it can be committed in the same transaction as the
+    # SimulationResult row, matching backtests and avoiding an orphaned dispatched
+    # task if a later task_id-only commit fails.
+    task_id = str(uuid.uuid4())
     simulation = SimulationResult(
         user_id=current_user.id,
         portfolio_id=payload.portfolio_id,
@@ -55,6 +59,7 @@ async def submit_monte_carlo_simulation(
         n_simulations=payload.n_simulations,
         annual_contribution=Decimal(str(payload.annual_contribution)),
         seed=payload.seed,
+        task_id=task_id,
     )
     db.add(simulation)
     await db.commit()
@@ -64,17 +69,15 @@ async def submit_monte_carlo_simulation(
     try:
         if celery_app.conf.task_always_eager:
             # apply() skips the Kombu producer pool (no broker connection needed)
-            task = run_simulation.apply(args=[str(simulation.id), params])
+            task = run_simulation.apply(args=[str(simulation.id), params], task_id=task_id)
         else:
-            task = run_simulation.delay(str(simulation.id), params)
+            task = run_simulation.apply_async(args=[str(simulation.id), params], task_id=task_id)
     except Exception as exc:
         _logger.exception("failed to dispatch simulation task simulation_id=%s", simulation.id)
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to dispatch simulation task.",
         ) from exc
-
-    simulation.task_id = task.id
 
     # In eager mode (USE_CELERY=false) the task runs synchronously and returns a
     # result dict — we write the outcome here since the task can't do async DB
@@ -92,7 +95,7 @@ async def submit_monte_carlo_simulation(
 
     return SimulationSubmitResponse(
         simulation_id=simulation.id,
-        task_id=task.id,
+        task_id=task_id,
         status=simulation.status,
     )
 

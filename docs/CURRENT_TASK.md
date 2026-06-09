@@ -28,6 +28,42 @@ passed; backend ruff/mypy passed; backend pytest passed with 155 passed, 3
 skipped when run with local Docker Postgres access outside the sandbox. Deploy
 remains the next product task.
 
+**2026-06-09 Deployment/docs audit:** Found and fixed a Render single-service
+deployment regression in efficient frontier dispatch. `/analysis/frontier` now
+uses Celery `apply()` in eager mode, returns the completed result immediately,
+and the frontier task's sync Redis client handles Upstash `rediss://` SSL like
+simulation/backtest. `backend/entrypoint.sh` now respects `${PORT:-8000}` and
+`render.yaml` sets `PORT=8000`. README and env docs now describe Supabase +
+Upstash + Render + Vercel, Tiingo cloud market data, `USE_CELERY=false`, and
+`VITE_API_BASE_URL`.
+
+**2026-06-09 QA/regression pre-deploy audit:** Re-ran frontend lint/test/build,
+backend ruff/mypy/pytest, Alembic drift check, and Docker Compose build. Current
+pre-deploy deployment diff is green: backend pytest `158 passed, 3 skipped`;
+frontend tests `17 passed`; Alembic `check` found no new upgrade operations;
+Docker Compose built backend, celery-worker, and frontend images. First full
+backend pytest pass hit a transient late-suite `UndefinedTableError: relation
+"users" does not exist` in four simulation API tests; `tests/test_simulation.py`
+passed in isolation and the full backend suite passed on rerun, so record this
+as a local test DB/schema-state flake to watch rather than a blocking app bug.
+
+**2026-06-09 Continuation after capacity interruption:** Re-reviewed the
+deployment/backend diff, started local Docker Postgres/Redis, and reran the
+settling checks: targeted frontier/risk/simulation pytest `64 passed`, full
+backend pytest `158 passed, 3 skipped`, Alembic `check` clean, and full
+`docker compose build` clean aside from Docker's non-blocking buildx plugin
+warning. The earlier targeted pytest failure was due to stopped local Postgres,
+not app behavior.
+
+**2026-06-09 Backend reviewer audit:** Found and fixed two small backend
+correctness issues. Monte Carlo submissions now pre-generate `task_id` and use
+Celery `apply/apply_async(..., task_id=...)`, matching backtest's orphan-task
+race avoidance. Historical VaR/CVaR now handles a one-return sample by clamping
+the VaR lookup to the only available observation. Checks: backend ruff/mypy
+passed; `tests/test_simulation.py` passed; `tests/test_backtest.py` passed;
+single simulation ownership regression passed. A combined simulation+risk
+pytest run repeated the local DB/schema-state flake pattern after 50 passes.
+
 ---
 
 ## Phase 7a — Foundation ✅ complete
@@ -69,7 +105,7 @@ location /api/ {
 ```
 
 ### Step 4: Rewrite `frontend/src/services/apiClient.ts` ✅
-- `baseURL: '/api/v1'` (relative — no VITE_API_BASE_URL needed)
+- `baseURL: '${VITE_API_BASE_URL ?? ""}/api/v1'` (empty locally; set to Render origin on Vercel)
 - Request interceptor: attach access token from Zustand store (`Authorization: Bearer <token>`)
 - Response interceptor: deduplicated refresh lock pattern below; `_retry` guard; skip on `/auth/login` and `/auth/refresh` paths
 
