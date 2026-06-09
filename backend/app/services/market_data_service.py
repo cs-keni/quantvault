@@ -282,7 +282,7 @@ class MarketDataService:
     async def get_risk_free_rate(self) -> float:
         """Fetch the annualized risk-free rate (10-year Treasury yield / 100).
 
-        Tries ^TNX via Yahoo Finance, falls back to hardcoded 0.043.
+        Tries ^TNX via Yahoo Finance, falls back to hardcoded 0.04.
         Decision #25: divide by 100, NOT by 10.
         """
         try:
@@ -295,7 +295,7 @@ class MarketDataService:
             )
         except Exception as exc:
             _logger.warning("get_risk_free_rate failed, using fallback: %s", exc)
-            return 0.043
+            return 0.04
 
     def _fetch_rfr(self) -> float:
         try:
@@ -315,7 +315,7 @@ class MarketDataService:
             except Exception as exc:
                 _logger.warning("Tiingo rfr failed: %s", exc)
 
-        return 0.043
+        return 0.04
 
     async def get_ticker_info(self, ticker: str) -> dict[str, Any]:
         """Fetch company metadata (name, sector, industry, market cap, currency, exchange)."""

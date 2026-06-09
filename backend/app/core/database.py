@@ -12,7 +12,7 @@ if settings.ENVIRONMENT == "production":
     _ssl_ctx = ssl.create_default_context()
     _ssl_ctx.check_hostname = False
     _ssl_ctx.verify_mode = ssl.CERT_NONE
-    _connect_args: dict = {"ssl": _ssl_ctx}
+    _connect_args: dict[str, object] = {"ssl": _ssl_ctx}
 else:
     _connect_args = {}
 

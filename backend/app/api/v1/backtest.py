@@ -7,10 +7,12 @@ from typing import Annotated
 
 import numpy as np
 import pandas as pd
+from celery.result import EagerResult
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.celery_app import celery_app
 from app.core.database import get_db
 from app.dependencies import CurrentUser
 from app.models.backtest_result import BacktestResult, BacktestStatus
@@ -22,9 +24,6 @@ from app.schemas.backtest import (
     BacktestTearsheet,
     EquityCurvePoint,
 )
-from celery.result import EagerResult
-
-from app.celery_app import celery_app
 from app.services import portfolio_service
 from app.services.backtest_service import run_backtest
 from app.services.market_data_service import MarketDataService, get_market_data_service

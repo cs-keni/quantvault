@@ -3,6 +3,43 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-09 — Codex test audit: restore backend lint/type/test health
+
+Reviewed QuantVault from the canonical spec and shared handoff, then ran the
+local verification gates. Found and fixed small backend hygiene/test drift:
+
+- `backend/app/api/v1/backtest.py` had an unsorted import block from the recent
+  eager-mode backtest changes; Ruff now passes.
+- `backend/app/core/database.py` used a bare `dict` annotation for production
+  `connect_args`; changed to `dict[str, object]` so strict mypy passes.
+- `backend/app/services/market_data_service.py` had drifted to an RFR fallback
+  of `0.043`; restored the locked/documented fallback `0.04`.
+- `backend/tests/test_market_data.py` still mocked the old `yf.download` path.
+  Tests now mock current service seams (`_fetch_and_process_returns`,
+  `_close_series`, `_fetch_rfr`, and `yf.Ticker().history`) and run market-data
+  `asyncio.to_thread` calls inline inside that test module only, avoiding
+  session-loop/threadpool hangs in unit tests. API edge tests that only verify
+  route contracts now call route functions or inspect route dependencies
+  directly instead of using a brittle ASGI client path.
+
+Checks:
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 17 passed
+- `cd frontend && npm run build` — passed; same non-failing Vite plugin timing warning
+- `cd backend && .venv/bin/ruff check app tests` — passed
+- `cd backend && .venv/bin/mypy app` — passed
+- `cd backend && .venv/bin/pytest -q` — 155 passed, 3 skipped, 1 passlib warning
+
+Environment gotcha: sandboxed pytest could not connect to Docker Postgres on
+`localhost:5432` even though `docker compose exec -T db pg_isready -U qv -d
+quantvault` reported healthy. Rerunning pytest outside the sandbox with approved
+escalation succeeded.
+
+GBrain sync was attempted after the edits, but both sandboxed and escalated
+`gbrain sync --repo .` failed with `ENOTFOUND` for the configured Supabase
+Postgres host/user in `~/.gbrain/config.json`; the semantic index was not
+refreshed in this session.
+
 ## 2026-06-08 — Fix Monte Carlo + Backtest: use cache+memory backend in eager mode
 
 **Root cause (definitive #3, confirmed via /health/celery traceback):**

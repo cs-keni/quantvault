@@ -5,6 +5,19 @@ this whenever architecture, component ownership, or cross-cutting systems
 change — not for routine task completion (that's `CURRENT_TASK.md` /
 `ENGINEERING_LOG.md`).
 
+## State as of 2026-06-09 (Codex test audit complete)
+
+Codex reviewed the repo context and ran verification. Small drift fixes are in:
+backend Ruff import ordering, strict mypy typing for production DB `connect_args`,
+RFR fallback restored to the locked `0.04`, and market-data tests updated for the
+current Tiingo/Yahoo service seams instead of stale `yf.download` mocks.
+
+Verification passed: frontend lint/test/build; backend ruff/mypy; backend pytest
+`155 passed, 3 skipped`. Backend pytest needs access to local Docker Postgres on
+`localhost:5432`; in this Codex sandbox it timed out until rerun with approved
+escalation. `docker compose exec -T db pg_isready -U qv -d quantvault` was
+healthy throughout.
+
 ## State as of 2026-06-08 (Phase 8b UI Overhaul complete)
 
 Phase 8b is implemented and verified:

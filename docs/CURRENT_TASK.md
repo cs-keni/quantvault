@@ -20,6 +20,14 @@
 
 **Next:** Deploy — set up Supabase + Upstash + Render + Vercel. Record demo video.
 
+**2026-06-09 Codex test audit:** Reviewed project context, fixed backend
+lint/type/test drift, and reran checks. Backend market-data tests now mock the
+current Tiingo/Yahoo service seams instead of stale `yf.download` calls; RFR
+fallback is back to the locked `0.04`. Verification: frontend lint/test/build
+passed; backend ruff/mypy passed; backend pytest passed with 155 passed, 3
+skipped when run with local Docker Postgres access outside the sandbox. Deploy
+remains the next product task.
+
 ---
 
 ## Phase 7a — Foundation ✅ complete
