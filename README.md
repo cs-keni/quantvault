@@ -17,9 +17,8 @@ or how a portfolio might behave under different return paths. QuantVault turns
 holdings into measurable risk and return profiles, then exposes the assumptions
 in code so the results can be inspected, tested, and explained.
 
-> Status: pre-deploy audit complete. Backend, frontend, migration, and Docker
-> checks are passing locally. Live demo screenshots and video are the next
-> portfolio-presentation step.
+> Status: complete. Backend, frontend, migration, and Docker checks passing.
+> Demo video recorded. Live screenshots below.
 
 ## Demo
 
@@ -246,13 +245,19 @@ frontend routes to `index.html` so direct React Router URLs work.
 
 ## Screenshots
 
-Demo portfolio: VTI 60%, BND 30%, VXUS 10%.
+Demo portfolios: **Tech Growth** (AAPL 30% / MSFT 35% / GOOGL 25% / BND 10%) and a diversified **VTI / BND / VXUS** portfolio.
 
-![Dashboard dark mode](docs/screenshots/dashboard-dark.png)
+![Portfolio builder — holdings form with green 100% weight bar](docs/screenshots/portfoliobuilder.jpg)
 
-![Analysis page with efficient frontier chart](docs/screenshots/analysis-frontier.png)
+![Dashboard — metric cards and allocation sidebar](docs/screenshots/dashboard.jpg)
 
-![Monte Carlo paths chart](docs/screenshots/monte-carlo-paths.png)
+![Analysis — correlation heatmap and efficient frontier](docs/screenshots/analysis.png)
+
+![Monte Carlo — simulation paths and outcome distribution histogram](docs/screenshots/montecarlo.jpg)
+
+![Backtest — equity curve vs benchmark and tearsheet metrics](docs/screenshots/backtest.png)
+
+![Compare — side-by-side portfolio metrics with winner highlighting](docs/screenshots/compare.jpg)
 
 ## Disclaimer
 

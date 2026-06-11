@@ -1,6 +1,7 @@
 # QuantVault Demo Recording Script
 
 Silent screen recording — no voiceover. Mouse movements guide the viewer.
+Recording length: ~2m 45s.
 
 ## Setup before recording
 
