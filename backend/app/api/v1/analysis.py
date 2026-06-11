@@ -253,9 +253,11 @@ async def submit_frontier(
                 status="SUCCESS",
                 result=FrontierResult.model_validate(task.result),
             )
+        error_detail = str(task.result) if task.result else "Frontier analysis failed."
+        _logger.error("eager frontier task failed task_id=%s: %s", task_id, error_detail)
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Frontier analysis failed.",
+            detail=f"Frontier analysis failed: {error_detail}",
         )
 
     return FrontierSubmitResponse(task_id=task_id, status="PENDING")

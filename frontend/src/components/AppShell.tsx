@@ -1,12 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "framer-motion";
 import {
   BarChart3,
+  Check,
   GitCompare,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
+  Pencil,
   Play,
   Plus,
   Sun,
@@ -14,7 +16,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { apiClient } from "../services/apiClient";
@@ -109,6 +111,11 @@ function SidebarContent({
   const logout = useAuthStore((state) => state.logout);
   const theme = useThemeStore((state) => state.theme);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const queryClient = useQueryClient();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isSavingRename, setIsSavingRename] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const portfoliosQuery = useQuery({
     queryKey: ["portfolios"],
@@ -122,6 +129,30 @@ function SidebarContent({
   const fallbackPortfolioId = portfolios[0]?.id ?? null;
   const routePortfolioId = activePortfolioId ?? fallbackPortfolioId;
   const selectedPortfolioId = activePortfolioId ?? "";
+  const currentPortfolioName = portfolios.find((p) => p.id === selectedPortfolioId)?.name ?? "";
+
+  function startRenaming() {
+    setRenameValue(currentPortfolioName);
+    setIsRenaming(true);
+    setTimeout(() => renameInputRef.current?.select(), 0);
+  }
+
+  async function handleRenameSubmit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = renameValue.trim();
+    if (!trimmed || !selectedPortfolioId) {
+      setIsRenaming(false);
+      return;
+    }
+    setIsSavingRename(true);
+    try {
+      await apiClient.patch(`/portfolios/${selectedPortfolioId}`, { name: trimmed });
+      await queryClient.invalidateQueries({ queryKey: ["portfolios"] });
+    } finally {
+      setIsSavingRename(false);
+      setIsRenaming(false);
+    }
+  }
 
   function handlePortfolioChange(portfolioId: string) {
     if (portfolioId === "") {
@@ -148,25 +179,67 @@ function SidebarContent({
           {!collapsed ? <span className="text-sm font-semibold">QuantVault</span> : null}
         </div>
         {!collapsed ? (
-          <select
-            aria-label="Portfolio"
-            className="mt-4 h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink outline-none ring-accent/30 focus:border-accent focus:ring-4"
-            value={selectedPortfolioId}
-            onChange={(event) => handlePortfolioChange(event.target.value)}
-          >
-            {portfolios.length === 0 ? (
-              <option value="">+ Add portfolio</option>
+          <div className="mt-4">
+            {isRenaming ? (
+              <form className="flex items-center gap-1" onSubmit={handleRenameSubmit}>
+                <input
+                  ref={renameInputRef}
+                  className="h-10 min-w-0 flex-1 rounded-md border border-accent bg-surface px-3 text-sm text-ink outline-none ring-accent/30 focus:ring-4"
+                  disabled={isSavingRename}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                />
+                <button
+                  aria-label="Save name"
+                  className="flex h-10 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:border-accent hover:text-accent disabled:opacity-50"
+                  disabled={isSavingRename}
+                  type="submit"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  aria-label="Cancel rename"
+                  className="flex h-10 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:border-negative hover:text-negative"
+                  type="button"
+                  onClick={() => setIsRenaming(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </form>
             ) : (
-              <>
-                <option value="">+ Add portfolio</option>
-                {portfolios.map((portfolio) => (
-                  <option key={portfolio.id} value={portfolio.id}>
-                    {portfolio.name}
-                  </option>
-                ))}
-              </>
+              <div className="flex items-center gap-1">
+                <select
+                  aria-label="Portfolio"
+                  className="h-10 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-ink outline-none ring-accent/30 focus:border-accent focus:ring-4"
+                  value={selectedPortfolioId}
+                  onChange={(event) => handlePortfolioChange(event.target.value)}
+                >
+                  {portfolios.length === 0 ? (
+                    <option value="">+ Add portfolio</option>
+                  ) : (
+                    <>
+                      <option value="">+ Add portfolio</option>
+                      {portfolios.map((portfolio) => (
+                        <option key={portfolio.id} value={portfolio.id}>
+                          {portfolio.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {selectedPortfolioId ? (
+                  <button
+                    aria-label="Rename portfolio"
+                    className="flex h-10 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted hover:border-accent hover:text-accent"
+                    type="button"
+                    onClick={startRenaming}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
             )}
-          </select>
+          </div>
         ) : (
           <button
             aria-label="Add portfolio"

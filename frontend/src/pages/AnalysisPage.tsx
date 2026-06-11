@@ -120,6 +120,15 @@ function FrontierChart({
   );
 }
 
+function correlationLabel(value: number): string {
+  const abs = Math.abs(value);
+  const dir = value >= 0 ? "positive" : "negative";
+  if (abs >= 0.8) return `Strong ${dir}`;
+  if (abs >= 0.5) return `Moderate ${dir}`;
+  if (abs >= 0.2) return `Weak ${dir}`;
+  return "Near zero";
+}
+
 function CorrelationHeatmap({ metrics }: { metrics: PortfolioMetricsResponse }) {
   const { tickers, matrix } = metrics.correlation;
   const gridTemplateColumns = `96px repeat(${tickers.length}, minmax(56px, 1fr))`;
@@ -144,13 +153,20 @@ function CorrelationHeatmap({ metrics }: { metrics: PortfolioMetricsResponse }) 
                 value >= 0
                   ? `rgba(16, 185, 129, ${0.12 + intensity * 0.5})`
                   : `rgba(239, 68, 68, ${0.12 + intensity * 0.5})`;
+              const isSelf = rowIndex === columnIndex;
               return (
                 <div
-                  className="m-0.5 rounded p-2 text-center font-mono text-xs text-ink"
+                  className="group relative m-0.5 cursor-default rounded p-2 text-center font-mono text-xs text-ink"
                   key={`${ticker}-${tickers[columnIndex]}`}
                   style={{ background }}
                 >
                   {value.toFixed(2)}
+                  {!isSelf && (
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded border border-border bg-[#1e1e1e] px-2.5 py-1.5 text-xs text-ink shadow-lg group-hover:block">
+                      <span className="font-semibold">{ticker} × {tickers[columnIndex]}</span>
+                      <span className="ml-2 text-muted">{correlationLabel(value)}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -237,7 +237,7 @@ def find_max_sharpe_portfolio(
 def generate_efficient_frontier(
     returns_df: pd.DataFrame,
     rfr: float,
-    n_points: int = 100,
+    n_points: int = 30,
 ) -> list[FrontierPoint]:
     """Generate the long-only Markowitz efficient frontier.
 
