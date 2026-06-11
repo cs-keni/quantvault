@@ -3,6 +3,23 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-11 — Docker: forward TIINGO_API_KEY into containers + full E2E verified
+
+`TIINGO_API_KEY` was present in `.env` but not forwarded to the backend or
+celery-worker containers because `docker-compose.yml` only passes explicitly
+listed env vars. Added `- TIINGO_API_KEY=${TIINGO_API_KEY}` to both the
+`backend` and `celery-worker` environment sections.
+
+Verified with `docker compose exec backend env | grep TIINGO` — key now present
+in container. Full E2E test with real Tiingo data confirmed all features working:
+
+- Dashboard: Sharpe 1.23, Sortino 1.80, VaR -0.98%, CVaR -1.37%, Beta 0.75,
+  Max drawdown -7.04%, Annual return 15.48%, Annual volatility 9.31%
+- Analysis: Correlation heatmap (VTI-BND 0.29, VTI-VXUS 0.82, BND-VXUS 0.44)
+- Efficient Frontier curve rendered
+- Monte Carlo: Mean $41,654, Median $38,255, 100% probability of profit
+- Backtest: CAGR 5.62%, Sharpe 0.13, equity curve vs SPY benchmark rendered
+
 ## 2026-06-11 — QA pass: three UI fixes
 
 Full E2E QA run against the running Docker stack. Three bugs found and fixed:
