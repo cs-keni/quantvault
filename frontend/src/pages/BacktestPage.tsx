@@ -50,6 +50,17 @@ function percent(value: number) {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+function friendlyStatus(status: string): string {
+  const map: Record<string, string> = {
+    READY: "Ready to run",
+    PENDING: "Running…",
+    STARTED: "Running…",
+    SUCCESS: "Complete",
+    FAILURE: "Failed",
+  };
+  return map[status] ?? status;
+}
+
 export function BacktestPage() {
   const { id } = useParams();
   const [startDate, setStartDate] = useState(defaultStartDate);
@@ -113,7 +124,7 @@ export function BacktestPage() {
   return (
     <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <PageHeader title={portfolioQuery.data?.name ?? "Backtest"} subtitle={`Status: ${status}`} />
+        <PageHeader title={portfolioQuery.data?.name ?? "Backtest"} subtitle={friendlyStatus(status)} />
 
         <form
           className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-6"
@@ -167,8 +178,10 @@ export function BacktestPage() {
           <label className="block text-sm font-medium text-ink">
             Benchmark
             <input
-              className="mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-muted"
+              className="mt-1 w-full cursor-default rounded-md border border-border/40 bg-bg/40 px-3 py-2 text-sm text-muted/70 outline-none"
               readOnly
+              tabIndex={-1}
+              title="Set on the portfolio — edit from Portfolio settings"
               value={portfolioQuery.data?.benchmark_ticker ?? "SPY"}
             />
           </label>
@@ -203,7 +216,7 @@ export function BacktestPage() {
                   <MetricCard key="cagr" label="CAGR" value={tearsheet.cagr} formatter={percent} tone={tearsheet.cagr >= 0 ? "positive" : "negative"} />,
                   <MetricCard key="sharpe" label="Sharpe" value={tearsheet.sharpe} formatter={(value) => value.toFixed(2)} tone={tearsheet.sharpe >= 0 ? "positive" : "negative"} />,
                   <MetricCard key="sortino" label="Sortino" value={tearsheet.sortino} formatter={(value) => value.toFixed(2)} tone={tearsheet.sortino >= 0 ? "positive" : "negative"} />,
-                  <MetricCard key="calmar" label="Calmar" value={tearsheet.calmar} formatter={(value) => value.toFixed(2)} />,
+                  <MetricCard key="calmar" label="Calmar" value={tearsheet.calmar} formatter={(value) => value.toFixed(2)} tone={tearsheet.calmar === null ? "neutral" : tearsheet.calmar >= 1 ? "positive" : "negative"} />,
                   <MetricCard key="max-drawdown" label="Max drawdown" value={tearsheet.max_drawdown} formatter={percent} tone="negative" />,
                   <MetricCard key="alpha" label="Alpha" value={tearsheet.alpha} formatter={percent} tone={tearsheet.alpha >= 0 ? "positive" : "negative"} />,
                 ]}
@@ -217,6 +230,16 @@ export function BacktestPage() {
                   Final {currency(tearsheet.final_value)} vs benchmark{" "}
                   {currency(tearsheet.benchmark_final_value)}
                 </p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.portfolio }} />
+                  Portfolio
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.benchmark }} />
+                  {portfolioQuery.data?.benchmark_ticker ?? "Benchmark"}
+                </span>
               </div>
               <div className="mt-4 h-96">
                 <ResponsiveContainer height="100%" width="100%">

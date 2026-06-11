@@ -3,6 +3,49 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-10 — Full design audit: 15 fixes across all pages
+
+Full audit of all 7 pages and 5 shared components. Issues found and fixed:
+
+**Shared components:**
+- `charts.tsx`: ChartTooltip container now `rounded-lg shadow-lg`; color swatch
+  changed from `h-2 w-2` square → `h-2 w-2 rounded-full` (was rendering as
+  a pixel artifact instead of a color indicator)
+- `AppShell.tsx`: Collapsed sidebar nav tooltips now have `rounded` and
+  `shadow-md` (were sharp rectangles)
+
+**MonteCarloPage:**
+- Status label no longer shows raw enum — `READY` → "Ready to simulate",
+  `SUCCESS` → "Complete", etc. via `friendlyStatus()` helper
+- Simulation paths chart now has inline legend (p95/p50/p5/initial)
+- "Probability of doubling" MetricCard now has `tone="positive"` (was neutral)
+
+**BacktestPage:**
+- Status label same fix as Monte Carlo
+- Equity curve chart now has inline legend (Portfolio / Benchmark ticker)
+- Read-only benchmark input is now visually distinct: `border/40 bg/40 cursor-default
+  tabIndex={-1}` — no longer looks like a broken editable field
+- Calmar MetricCard now has conditional tone: positive if ≥1, negative if <0
+
+**ComparePage:**
+- Added `higherIsBetter` flag to each metric row
+- Table cells now highlight the winner in each row with `text-positive font-semibold`
+  (only when there's a single clear winner — ties are not highlighted)
+- "Loading" text in table cells → skeleton `animate-pulse` divs
+- Added "1-year trailing period · green = better" caption above table
+
+**DashboardPage:**
+- Replaced `window.confirm()` for portfolio delete with inline confirmation UI
+  (Delete → "Delete portfolio?" prompt + Delete/Cancel buttons). `useEffect`
+  resets confirmation state when the active portfolio changes.
+
+**PortfolioBuilderPage:**
+- "Remove" text button → `Trash2` icon button (same destructive hover style)
+- Added `✓ Fully allocated` inline indicator (Check icon + green text) when
+  `totalPercent ≈ 100%`; disappears otherwise
+- Holding cards now animate in/out via `AnimatePresence` + `motion.article`
+  with 180ms ease-out — add/remove feels intentional instead of abrupt
+
 ## 2026-06-10 — Design polish: frontier chart rewrite + animation + hover
 
 Three visual bugs reported during demo prep; all fixed:

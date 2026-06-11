@@ -62,6 +62,7 @@ export function DashboardPage() {
   const { portfolioId } = useParams();
   const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [period, setPeriod] = useState<Period>("1y");
@@ -100,6 +101,10 @@ export function DashboardPage() {
     navigate(`/dashboard/portfolios/${activePortfolioId}`, { replace: true });
   }, [activePortfolioId, navigate, portfolioId]);
 
+  useEffect(() => {
+    setShowDeleteConfirm(false);
+  }, [activePortfolioId]);
+
   const selectedPortfolio = portfoliosQuery.data?.find(
     (portfolio) => portfolio.id === activePortfolioId,
   );
@@ -121,12 +126,12 @@ export function DashboardPage() {
 
   async function handleDeletePortfolio() {
     if (!activePortfolioId || !selectedPortfolio) return;
-    if (!window.confirm(`Delete "${selectedPortfolio.name}"? This cannot be undone.`)) return;
     setIsDeleting(true);
     try {
       await apiClient.delete(`/portfolios/${activePortfolioId}`);
       await queryClient.invalidateQueries({ queryKey: ["portfolios"] });
       setSelectedPortfolioId(null);
+      setShowDeleteConfirm(false);
       navigate("/dashboard");
     } finally {
       setIsDeleting(false);
@@ -170,15 +175,35 @@ export function DashboardPage() {
             </select>
 
             {activePortfolioId ? (
-              <button
-                type="button"
-                onClick={() => void handleDeletePortfolio()}
-                disabled={isDeleting}
-                title="Delete portfolio"
-                className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-muted transition hover:border-negative/50 hover:bg-negative/10 hover:text-negative disabled:opacity-50"
-              >
-                <Trash2 size={16} />
-              </button>
+              showDeleteConfirm ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-negative">Delete portfolio?</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeletePortfolio()}
+                    disabled={isDeleting}
+                    className="h-10 rounded-md bg-negative px-3 text-sm font-semibold text-white transition disabled:opacity-60"
+                  >
+                    {isDeleting ? "Deleting" : "Delete"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="h-10 rounded-md border border-border px-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  title="Delete portfolio"
+                  className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-surface text-muted transition hover:border-negative/50 hover:bg-negative/10 hover:text-negative disabled:opacity-50"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )
             ) : null}
             <PeriodToggle value={period} onChange={handlePeriodChange} />
           </div>

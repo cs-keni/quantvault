@@ -16,7 +16,7 @@ export function ChartTooltip({
   }
 
   return (
-    <div className="border border-border bg-[#1e1e1e] p-3 text-sm">
+    <div className="rounded-lg border border-border bg-[#1e1e1e] p-3 text-sm shadow-lg">
       {label !== undefined ? <p className="mb-2 text-muted">{label}</p> : null}
       <div className="space-y-1">
         {payload.map((item, index) => {
@@ -25,7 +25,7 @@ export function ChartTooltip({
           }
           return (
             <p className="font-mono text-ink" key={`${item.name ?? "value"}-${index}`}>
-              <span className="mr-2 inline-block h-2 w-2" style={{ background: item.color }} />
+              <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ background: item.color }} />
               {item.name ? <span className="mr-2 text-muted">{item.name}</span> : null}
               {formatter ? formatter(item.value ?? "", item.name) : item.value}
             </p>

@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, Trash2 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -171,9 +173,17 @@ export function PortfolioBuilderPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">Holdings</h2>
-                <p className="mt-1 font-mono text-sm text-muted">
-                  {validation.totalPercent.toFixed(2)}% allocated
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="font-mono text-sm text-muted">
+                    {validation.totalPercent.toFixed(2)}% allocated
+                  </p>
+                  {Math.abs(validation.totalPercent - 100) <= 0.1 ? (
+                    <span className="flex items-center gap-1 text-xs font-medium text-positive">
+                      <Check className="h-3.5 w-3.5" />
+                      Fully allocated
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <button
                 className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
@@ -192,10 +202,15 @@ export function PortfolioBuilderPage() {
             </div>
 
             <div className="mt-5 space-y-4">
+              <AnimatePresence initial={false}>
               {holdings.map((holding) => (
-                <article
+                <motion.article
+                  animate={{ opacity: 1, y: 0 }}
                   className="rounded-lg border border-border bg-surface p-4"
+                  exit={{ opacity: 0, y: -6 }}
+                  initial={{ opacity: 0, y: -6 }}
                   key={holding.clientId}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
                 >
                   <div className="grid gap-4 lg:grid-cols-[120px_minmax(160px,1fr)_180px_140px_140px_auto]">
                     <label className="block text-sm font-medium text-ink">
@@ -266,12 +281,13 @@ export function PortfolioBuilderPage() {
                       />
                     </label>
                     <button
-                      className="self-end rounded-md border border-border px-3 py-2 text-sm font-semibold text-muted transition hover:border-negative hover:text-negative disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Remove holding"
+                      className="flex h-10 w-10 self-end items-center justify-center rounded-md border border-border text-muted transition hover:border-negative hover:text-negative disabled:cursor-not-allowed disabled:opacity-40"
                       type="button"
                       disabled={holdings.length === 1}
                       onClick={() => removeHolding(holding.clientId)}
                     >
-                      Remove
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                   <label className="mt-4 block text-sm font-medium text-ink">
@@ -284,8 +300,9 @@ export function PortfolioBuilderPage() {
                       }
                     />
                   </label>
-                </article>
+                </motion.article>
               ))}
+              </AnimatePresence>
             </div>
           </section>
 

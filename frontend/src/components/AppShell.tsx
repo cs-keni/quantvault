@@ -270,7 +270,7 @@ function SidebarContent({
               <Icon className="h-4 w-4 shrink-0" />
               {!collapsed ? <span>{item.label}</span> : null}
               {collapsed ? (
-                <span className="pointer-events-none absolute left-full z-20 ml-3 hidden whitespace-nowrap border border-border bg-surface px-2 py-1 text-xs text-ink group-hover:block">
+                <span className="pointer-events-none absolute left-full z-20 ml-3 hidden whitespace-nowrap rounded border border-border bg-surface px-2 py-1 text-xs text-ink shadow-md group-hover:block">
                   {item.label}
                 </span>
               ) : null}

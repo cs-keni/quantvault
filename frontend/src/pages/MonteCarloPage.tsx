@@ -39,6 +39,17 @@ function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function friendlyStatus(status: string): string {
+  const map: Record<string, string> = {
+    READY: "Ready to simulate",
+    PENDING: "Running…",
+    STARTED: "Running…",
+    SUCCESS: "Complete",
+    FAILURE: "Failed",
+  };
+  return map[status] ?? status;
+}
+
 function percentile(values: number[], percentileRank: number) {
   if (values.length === 0) {
     return 0;
@@ -186,7 +197,7 @@ export function MonteCarloPage() {
   return (
     <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <PageHeader title={portfolioQuery.data?.name ?? "Monte Carlo"} subtitle={`Status: ${status}`} />
+        <PageHeader title={portfolioQuery.data?.name ?? "Monte Carlo"} subtitle={friendlyStatus(status)} />
 
         <form
           className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-5"
@@ -289,6 +300,7 @@ export function MonteCarloPage() {
                     label="Probability of doubling"
                     value={result.probability_of_doubling}
                     formatter={percent}
+                    tone="positive"
                   />,
                 ]}
               </MotionCardGrid>
@@ -296,6 +308,24 @@ export function MonteCarloPage() {
 
             <section className="mt-8 rounded-lg border border-border bg-surface p-5">
               <h2 className="text-lg font-semibold text-ink">Simulation paths</h2>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.positive }} />
+                  p95 — optimistic
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.portfolio }} />
+                  p50 — median
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#ef4444" }} />
+                  p5 — pessimistic
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full border border-[#6b7280]" style={{ background: "transparent" }} />
+                  Initial investment
+                </span>
+              </div>
               <div className="mt-4 h-96">
                 <ResponsiveContainer height="100%" width="100%">
                   <ComposedChart data={chartData}>

@@ -9,19 +9,20 @@ const metricRows: {
   key: keyof PortfolioMetricsResponse;
   label: string;
   format: (value: unknown) => string;
+  higherIsBetter?: boolean;
 }[] = [
-  { key: "annual_return", label: "Annual return", format: (value) => percent(Number(value)) },
-  { key: "annual_volatility", label: "Annual volatility", format: (value) => percent(Number(value)) },
-  { key: "sharpe_ratio", label: "Sharpe", format: (value) => Number(value).toFixed(2) },
-  { key: "sortino_ratio", label: "Sortino", format: (value) => Number(value).toFixed(2) },
-  { key: "var", label: "VaR", format: (value) => percent(Number(value)) },
-  { key: "cvar", label: "CVaR", format: (value) => percent(Number(value)) },
+  { key: "annual_return", label: "Annual return", format: (value) => percent(Number(value)), higherIsBetter: true },
+  { key: "annual_volatility", label: "Annual volatility", format: (value) => percent(Number(value)), higherIsBetter: false },
+  { key: "sharpe_ratio", label: "Sharpe", format: (value) => Number(value).toFixed(2), higherIsBetter: true },
+  { key: "sortino_ratio", label: "Sortino", format: (value) => Number(value).toFixed(2), higherIsBetter: true },
+  { key: "var", label: "VaR", format: (value) => percent(Number(value)), higherIsBetter: true },
+  { key: "cvar", label: "CVaR", format: (value) => percent(Number(value)), higherIsBetter: true },
   {
     key: "beta",
     label: "Beta",
     format: (value) => (value === null ? "N/A" : Number(value).toFixed(2)),
   },
-  { key: "max_drawdown", label: "Max drawdown", format: (value) => percent(Number(value)) },
+  { key: "max_drawdown", label: "Max drawdown", format: (value) => percent(Number(value)), higherIsBetter: true },
 ];
 
 function percent(value: number) {
@@ -138,35 +139,66 @@ export function ComparePage() {
           </div>
         ) : null}
 
-        {selectedPortfolios.length >= 2 ? <div className="mt-8 overflow-x-auto rounded-lg border border-border bg-surface">
-          <table className="min-w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-border bg-bg">
-                <th className="px-4 py-3 font-semibold text-ink">Metric</th>
-                {selectedPortfolios.map((portfolio) => (
-                  <th className="px-4 py-3 font-semibold text-ink" key={portfolio.id}>
-                    {portfolio.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {metricRows.map((row) => (
-                <tr className="border-b border-border last:border-0" key={row.key}>
-                  <th className="px-4 py-3 font-medium text-muted">{row.label}</th>
-                  {selectedPortfolios.map((portfolio, index) => {
-                    const metrics = metricsQueries[index]?.data;
-                    return (
-                      <td className="px-4 py-3 font-mono text-ink" key={portfolio.id}>
-                        {isMetricLoading ? "Loading" : metrics ? row.format(metrics[row.key]) : "N/A"}
-                      </td>
-                    );
-                  })}
+        {selectedPortfolios.length >= 2 ? (
+          <div className="mt-8 overflow-x-auto rounded-lg border border-border bg-surface">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+              <p className="text-xs text-muted">1-year trailing period · green = better</p>
+            </div>
+            <table className="min-w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-border bg-bg">
+                  <th className="px-4 py-3 font-semibold text-ink">Metric</th>
+                  {selectedPortfolios.map((portfolio) => (
+                    <th className="px-4 py-3 font-semibold text-ink" key={portfolio.id}>
+                      {portfolio.name}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div> : null}
+              </thead>
+              <tbody>
+                {metricRows.map((row) => {
+                  const rawValues = selectedPortfolios.map((_, index) => {
+                    const metrics = metricsQueries[index]?.data;
+                    const v = metrics ? metrics[row.key] : null;
+                    return typeof v === "number" && !isNaN(v) ? v : null;
+                  });
+                  const validValues = rawValues.filter((v): v is number => v !== null);
+                  const bestValue =
+                    row.higherIsBetter !== undefined && validValues.length >= 2
+                      ? row.higherIsBetter
+                        ? Math.max(...validValues)
+                        : Math.min(...validValues)
+                      : null;
+                  const winnerCount = bestValue !== null ? rawValues.filter((v) => v === bestValue).length : 0;
+                  return (
+                    <tr className="border-b border-border last:border-0" key={row.key}>
+                      <th className="px-4 py-3 font-medium text-muted">{row.label}</th>
+                      {selectedPortfolios.map((portfolio, index) => {
+                        const metrics = metricsQueries[index]?.data;
+                        const rawValue = rawValues[index];
+                        const isWinner = winnerCount === 1 && bestValue !== null && rawValue === bestValue;
+                        return (
+                          <td
+                            className={`px-4 py-3 font-mono ${isWinner ? "font-semibold text-positive" : "text-ink"}`}
+                            key={portfolio.id}
+                          >
+                            {isMetricLoading ? (
+                              <div className="h-4 w-16 animate-pulse rounded bg-border" />
+                            ) : metrics ? (
+                              row.format(metrics[row.key])
+                            ) : (
+                              "N/A"
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
     </main>
   );
