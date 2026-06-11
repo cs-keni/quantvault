@@ -1,6 +1,6 @@
 # QuantVault — Agent Instructions
 
-Read `quantvault.md` before any code changes. It is the canonical spec.
+Read `docs/quantvault.md` before any code changes. It is the canonical spec.
 
 Also read `docs/AI_CONTEXT.md`, `docs/HANDOFF.md`, `docs/CURRENT_TASK.md`, and `docs/ENGINEERING_LOG.md` at the start of every session.
 
@@ -82,7 +82,7 @@ When the user's request matches an available skill, invoke it via the Skill tool
 
 ## Architecture Decisions (locked 2026-06-05 via /plan-eng-review)
 
-See `PHASES.md` for the full decision log. Key overrides from the spec:
+See `docs/PHASES.md` for the full decision log. Key overrides from the spec:
 
 - PyJWT (not python-jose) — active CVEs in python-jose
 - VaR annual = rolling 252-day window, NOT `daily_var * sqrt(252)`

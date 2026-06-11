@@ -31,6 +31,9 @@ node_modules/
 *.swo
 .DS_Store
 
+# Demo video (too large for git — host externally and link in README)
+*.mp4
+
 # Claude Code session state (scheduled-task locks, not project source)
 .claude/
 
