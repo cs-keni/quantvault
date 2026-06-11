@@ -51,7 +51,7 @@ export function MetricCard({
     tone === "positive" ? "text-positive" : tone === "negative" ? "text-negative" : "text-ink";
 
   return (
-    <article className="rounded-lg border border-border bg-surface p-4">
+    <article className="rounded-lg border border-border bg-surface p-4 transition-colors duration-150 hover:border-[#383838]">
       <p className="text-sm font-medium text-muted">{label}</p>
       <p className={`mt-3 font-mono text-2xl font-medium ${toneClass}`}>
         {value === null ? "—" : formatter(displayValue)}

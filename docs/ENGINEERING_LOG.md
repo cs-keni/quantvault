@@ -3,6 +3,39 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-10 — Design polish: frontier chart rewrite + animation + hover
+
+Three visual bugs reported during demo prep; all fixed:
+
+**Efficient frontier chart** (`AnalysisPage.tsx`):
+- Replaced `ScatterChart` + `line lineType="joint"` with `ComposedChart` +
+  `Line type="monotone"` — renders a smooth bezier curve instead of jagged
+  connected scatter dots.
+- Replaced `shape="star"` on special points with a custom `MarkerDot` SVG
+  component: inner filled circle + semi-transparent outer halo ring.
+  Indigo palette for current portfolio, green for min-risk, amber for max
+  Sharpe (red was semantically wrong — red implies loss).
+- Added an inline legend (4 colored dots + labels) above the chart for demo
+  clarity without needing to hover.
+- Sorted frontier data by `annual_volatility` ascending before rendering to
+  ensure monotone interpolation always goes left-to-right.
+
+**Card entrance animation** (`MotionCardGrid.tsx`):
+- Reduced stagger delay from `index * 40ms` → `index * 25ms` — removes the
+  left-to-right wipe effect Kenny noticed.
+- Reduced initial y-offset from 8px → 5px for a subtler lift-in.
+
+**MetricCard hover state** (`MetricCard.tsx`):
+- Added `hover:border-[#383838] transition-colors duration-150` — a 10-value
+  border brightness bump on hover for visual responsiveness without implying
+  clickability.
+
+**Backend** (`optimization_service.py`):
+- Removed `n_points=100` override in `_calculate_frontier_result`; now uses
+  the default 30. With `Line type="monotone"` bezier interpolation, 30 points
+  is visually indistinguishable from 100. Reduces frontier compute ~3.3x on
+  Render free tier.
+
 ## 2026-06-11 — Docker: forward TIINGO_API_KEY into containers + full E2E verified
 
 `TIINGO_API_KEY` was present in `.env` but not forwarded to the backend or

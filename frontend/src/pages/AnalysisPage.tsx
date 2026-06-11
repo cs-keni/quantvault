@@ -3,13 +3,13 @@ import { Fragment, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   CartesianGrid,
+  ComposedChart,
+  Line,
   ResponsiveContainer,
   Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
-  ZAxis,
 } from "recharts";
 
 import { axisStyle, chartColors } from "../components/chartConfig";
@@ -75,6 +75,16 @@ function toChartPoint(name: string, point: FrontierPoint): ChartPoint {
   };
 }
 
+function MarkerDot({ cx, cy, fill }: { cx?: number; cy?: number; fill: string }) {
+  if (!cx || !cy) return <g />;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={11} fill={fill} opacity={0.15} />
+      <circle cx={cx} cy={cy} r={5} fill={fill} />
+    </g>
+  );
+}
+
 function FrontierChart({
   frontier,
   metrics,
@@ -82,7 +92,10 @@ function FrontierChart({
   frontier: FrontierResult;
   metrics: PortfolioMetricsResponse;
 }) {
-  const frontierData = frontier.frontier.map((point, index) => toChartPoint(`Frontier ${index + 1}`, point));
+  const frontierData = [...frontier.frontier]
+    .sort((a, b) => a.annual_volatility - b.annual_volatility)
+    .map((point, index) => toChartPoint(`Frontier ${index + 1}`, point));
+
   const currentPoint = {
     name: "Current portfolio",
     return: metrics.annual_return,
@@ -90,32 +103,76 @@ function FrontierChart({
   };
 
   return (
-    <div className="h-96">
-      <ResponsiveContainer height="100%" width="100%">
-        <ScatterChart margin={{ bottom: 12, left: 8, right: 20, top: 20 }}>
-          <CartesianGrid stroke={chartColors.grid} />
-          <XAxis
-            dataKey="risk"
-            name="Volatility"
-            tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
-            type="number"
-            {...axisStyle}
-          />
-          <YAxis
-            dataKey="return"
-            name="Return"
-            tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
-            type="number"
-            {...axisStyle}
-          />
-          <ZAxis range={[80, 180]} />
-          <Tooltip content={<FrontierTooltip />} cursor={{ strokeDasharray: "3 3" }} />
-          <Scatter data={frontierData} fill={chartColors.portfolio} line lineType="joint" name="Frontier" />
-          <Scatter data={[currentPoint]} fill={chartColors.benchmark} name="Current" shape="circle" />
-          <Scatter data={[toChartPoint("Min variance", frontier.min_variance)]} fill={chartColors.positive} name="Min variance" shape="star" />
-          <Scatter data={[toChartPoint("Max Sharpe", frontier.max_sharpe)]} fill="#ef4444" name="Max Sharpe" shape="star" />
-        </ScatterChart>
-      </ResponsiveContainer>
+    <div>
+      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.portfolio }} />
+          Frontier curve
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.positive }} />
+          Min risk
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: "#f59e0b" }} />
+          Max Sharpe
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: chartColors.benchmark }} />
+          Current portfolio
+        </span>
+      </div>
+      <div className="h-80">
+        <ResponsiveContainer height="100%" width="100%">
+          <ComposedChart data={frontierData} margin={{ bottom: 12, left: 8, right: 20, top: 8 }}>
+            <CartesianGrid stroke={chartColors.grid} />
+            <XAxis
+              dataKey="risk"
+              domain={["auto", "auto"]}
+              name="Volatility"
+              tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+              type="number"
+              {...axisStyle}
+            />
+            <YAxis
+              dataKey="return"
+              domain={["auto", "auto"]}
+              name="Return"
+              tickFormatter={(value) => `${(Number(value) * 100).toFixed(0)}%`}
+              type="number"
+              {...axisStyle}
+            />
+            <Tooltip
+              content={<FrontierTooltip />}
+              cursor={{ stroke: chartColors.grid, strokeDasharray: "4 4", strokeWidth: 1 }}
+            />
+            <Line
+              activeDot={{ fill: chartColors.portfolio, r: 4, strokeWidth: 0 }}
+              dataKey="return"
+              dot={false}
+              isAnimationActive={false}
+              stroke={chartColors.portfolio}
+              strokeWidth={2}
+              type="monotone"
+            />
+            <Scatter
+              data={[toChartPoint("Min risk", frontier.min_variance)]}
+              name="Min risk"
+              shape={(props: any) => <MarkerDot cx={props.cx} cy={props.cy} fill={chartColors.positive} />}
+            />
+            <Scatter
+              data={[toChartPoint("Max Sharpe", frontier.max_sharpe)]}
+              name="Max Sharpe"
+              shape={(props: any) => <MarkerDot cx={props.cx} cy={props.cy} fill="#f59e0b" />}
+            />
+            <Scatter
+              data={[currentPoint]}
+              name="Current portfolio"
+              shape={(props: any) => <MarkerDot cx={props.cx} cy={props.cy} fill={chartColors.benchmark} />}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }

@@ -329,7 +329,7 @@ def _calculate_frontier_result(
 
     min_weights, _, _ = find_min_variance_portfolio(returns_df)
     max_weights, _, _, _ = find_max_sharpe_portfolio(returns_df, rfr)
-    frontier = generate_efficient_frontier(returns_df, rfr, n_points=100)
+    frontier = generate_efficient_frontier(returns_df, rfr)
 
     return FrontierResult(
         tickers=surviving_tickers,

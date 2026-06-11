@@ -16,9 +16,9 @@ export function MotionCardGrid({
       {children.map((child, index) => (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 5 }}
           key={index}
-          transition={{ ...transition, delay: prefersReduced ? 0 : index * 0.04 }}
+          transition={{ ...transition, delay: prefersReduced ? 0 : index * 0.025 }}
         >
           {child}
         </motion.div>
