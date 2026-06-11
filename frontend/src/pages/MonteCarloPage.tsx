@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   Area,
+  Bar,
+  BarChart,
   CartesianGrid,
   ComposedChart,
   Line,
@@ -37,6 +39,24 @@ function currency(value: number) {
 
 function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function buildFinalValueHistogram(finalValues: number[], bucketCount = 20) {
+  if (finalValues.length === 0) return [];
+  const sorted = [...finalValues].sort((a, b) => a - b);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  if (min === max) return [{ label: currency(min), count: finalValues.length }];
+  const width = (max - min) / bucketCount;
+  const buckets = Array.from({ length: bucketCount }, (_, i) => ({
+    label: currency(min + width * i),
+    count: 0,
+  }));
+  for (const value of finalValues) {
+    const index = Math.min(Math.floor((value - min) / width), bucketCount - 1);
+    buckets[index].count += 1;
+  }
+  return buckets;
 }
 
 function friendlyStatus(status: string): string {
@@ -183,6 +203,10 @@ export function MonteCarloPage() {
 
   const result = simulationStatusQuery.data?.result ?? null;
   const chartData = useMemo(() => (result ? buildPathChart(result) : []), [result]);
+  const histogramData = useMemo(
+    () => (result ? buildFinalValueHistogram(result.final_value_distribution) : []),
+    [result],
+  );
   const yearlyTicks = useMemo(() => {
     const pathLength = result?.sample_paths[0]?.length ?? 0;
     if (pathLength === 0) {
@@ -197,7 +221,21 @@ export function MonteCarloPage() {
   return (
     <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <PageHeader title={portfolioQuery.data?.name ?? "Monte Carlo"} subtitle={friendlyStatus(status)} />
+        <PageHeader
+          title={portfolioQuery.data?.name ?? "Monte Carlo"}
+          subtitle={
+            <span className="flex items-center gap-2">
+              {friendlyStatus(status)}
+              {(status === "PENDING" || status === "STARTED") ? (
+                <span className="inline-flex gap-0.5">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent" />
+                </span>
+              ) : null}
+            </span>
+          }
+        />
 
         <form
           className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-5"
@@ -372,6 +410,24 @@ export function MonteCarloPage() {
                     <Line dataKey="p95" dot={false} stroke={chartColors.positive} strokeWidth={2} type="monotone" />
                     <Line dataKey="initial" dot={false} stroke={chartColors.benchmark} strokeDasharray="6 6" strokeWidth={2} type="monotone" />
                   </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="mt-8 rounded-lg border border-border bg-surface p-5">
+              <h2 className="text-lg font-semibold text-ink">Outcome distribution</h2>
+              <p className="mt-1 text-sm text-muted">
+                Final portfolio value across {result.n_simulations.toLocaleString()} simulations
+              </p>
+              <div className="mt-4 h-64">
+                <ResponsiveContainer height="100%" width="100%">
+                  <BarChart data={histogramData} barCategoryGap="4%">
+                    <CartesianGrid stroke={chartColors.grid} vertical={false} />
+                    <XAxis dataKey="label" interval={4} tick={{ ...axisStyle.tick, fontSize: 10 }} tickLine={false} />
+                    <YAxis allowDecimals={false} width={32} {...axisStyle} />
+                    <Tooltip content={<ChartTooltip formatter={(value) => `${value} simulations`} />} />
+                    <Bar dataKey="count" fill={chartColors.portfolio} name="Simulations" radius={[2, 2, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </section>

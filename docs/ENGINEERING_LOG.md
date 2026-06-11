@@ -3,6 +3,26 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-10 — Design polish batch 2: histogram, running indicator, diagnostic tooltips
+
+**MonteCarloPage:**
+- Added "Outcome distribution" `BarChart` section below simulation paths.
+  Uses `buildFinalValueHistogram()` to bucket `final_value_distribution` into
+  20 bins; X-axis shows currency-formatted bucket floor labels, Y-axis shows
+  simulation count. Gives a visual sense of the outcome spread beyond p5/p50/p95.
+- `PageHeader` subtitle now shows animated bouncing dots (3×1.5px indigo circles,
+  staggered 150ms) during PENDING/STARTED states — same pattern applied to
+  BacktestPage in this batch.
+
+**BacktestPage:**
+- Applied same bouncing dots running indicator to PageHeader subtitle.
+
+**AnalysisPage:**
+- Correlation heatmap diagonal cells (self-correlation = 1.0) now show a tooltip
+  on hover: "{ticker} — Self-correlation — always 1.0". Previously hovered blank.
+
+All changes TypeScript-clean (`npx tsc --noEmit` zero errors).
+
 ## 2026-06-10 — Full design audit: 15 fixes across all pages
 
 Full audit of all 7 pages and 5 shared components. Issues found and fixed:

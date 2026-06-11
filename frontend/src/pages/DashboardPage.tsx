@@ -21,7 +21,15 @@ import { PeriodToggle, type Period } from "../components/PeriodToggle";
 import { SkeletonCard } from "../components/SkeletonCard";
 import { apiClient } from "../services/apiClient";
 import { useAuthStore } from "../store/authStore";
-import type { PortfolioListItem, PortfolioMetricsResponse } from "../types/api";
+import type { PortfolioListItem, PortfolioMetricsResponse, PortfolioOut } from "../types/api";
+
+const assetClassColor: Record<string, string> = {
+  EQUITY: "#818cf8",
+  FIXED_INCOME: "#38bdf8",
+  REAL_ESTATE: "#f59e0b",
+  COMMODITY: "#f97316",
+  CASH: "#34d399",
+};
 
 const metricFormatters = {
   number(value: number) {
@@ -90,6 +98,15 @@ export function DashboardPage() {
         `/analysis/portfolios/${activePortfolioId}/metrics`,
         { params: { period } },
       );
+      return response.data;
+    },
+  });
+
+  const portfolioDetailQuery = useQuery({
+    queryKey: ["portfolio", activePortfolioId],
+    enabled: activePortfolioId !== null,
+    queryFn: async () => {
+      const response = await apiClient.get<PortfolioOut>(`/portfolios/${activePortfolioId}`);
       return response.data;
     },
   });
@@ -333,35 +350,67 @@ export function DashboardPage() {
           </div>
 
           <aside className="rounded-lg border border-border bg-surface p-5">
-            <h3 className="text-base font-semibold text-ink">Risk context</h3>
-            <dl className="mt-4 space-y-4 text-sm">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Annual return</dt>
-                <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.annual_return) : "—"}
-                </dd>
+            <h3 className="text-base font-semibold text-ink">Allocation</h3>
+            {portfolioDetailQuery.isLoading ? (
+              <div className="mt-4 space-y-4">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="h-3 w-20 animate-pulse rounded bg-border" />
+                    <div className="h-2 animate-pulse rounded-full bg-border" />
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Annual volatility</dt>
-                <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.annual_volatility) : "—"}
-                </dd>
+            ) : portfolioDetailQuery.data?.holdings.length ? (
+              <div className="mt-4 space-y-3">
+                {[...portfolioDetailQuery.data.holdings]
+                  .sort((a, b) => Number(b.target_weight) - Number(a.target_weight))
+                  .map((holding) => {
+                    const weight = Number(holding.target_weight);
+                    const color = assetClassColor[holding.asset_class] ?? "#818cf8";
+                    return (
+                      <div key={holding.ticker}>
+                        <div className="mb-1 flex items-center justify-between">
+                          <span className="font-mono text-xs font-semibold text-ink">
+                            {holding.ticker}
+                          </span>
+                          <span className="text-xs text-muted">{(weight * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ background: color, width: `${weight * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Risk-free rate</dt>
-                <dd className="font-mono text-ink">
-                  {metrics ? metricFormatters.percent(metrics.risk_free_rate) : "—"}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Beta benchmark</dt>
-                <dd className="font-mono text-ink">{metrics?.beta_benchmark ?? "—"}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted">Dropped tickers</dt>
-                <dd className="font-mono text-ink">{metrics?.dropped_tickers.length ?? 0}</dd>
-              </div>
-            </dl>
+            ) : (
+              <p className="mt-4 text-sm text-muted">No holdings</p>
+            )}
+
+            {metrics ? (
+              <dl className="mt-6 space-y-3 border-t border-border pt-5 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Annual return</dt>
+                  <dd className={`font-mono font-semibold ${metrics.annual_return >= 0 ? "text-positive" : "text-negative"}`}>
+                    {metricFormatters.percent(metrics.annual_return)}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Volatility</dt>
+                  <dd className="font-mono text-ink">
+                    {metricFormatters.percent(metrics.annual_volatility)}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Risk-free rate</dt>
+                  <dd className="font-mono text-ink">
+                    {metricFormatters.percent(metrics.risk_free_rate)}
+                  </dd>
+                </div>
+              </dl>
+            ) : null}
           </aside>
         </section>
       </section>

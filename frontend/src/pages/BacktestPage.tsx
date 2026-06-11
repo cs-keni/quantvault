@@ -124,7 +124,21 @@ export function BacktestPage() {
   return (
     <main className="min-h-screen bg-bg text-ink">
       <section className="mx-auto max-w-7xl px-6 py-8">
-        <PageHeader title={portfolioQuery.data?.name ?? "Backtest"} subtitle={friendlyStatus(status)} />
+        <PageHeader
+          title={portfolioQuery.data?.name ?? "Backtest"}
+          subtitle={
+            <span className="flex items-center gap-2">
+              {friendlyStatus(status)}
+              {(status === "PENDING" || status === "STARTED") ? (
+                <span className="inline-flex gap-0.5">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent" />
+                </span>
+              ) : null}
+            </span>
+          }
+        />
 
         <form
           className="mt-8 grid gap-4 rounded-lg border border-border bg-surface p-5 lg:grid-cols-6"

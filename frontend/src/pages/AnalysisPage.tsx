@@ -218,7 +218,12 @@ function CorrelationHeatmap({ metrics }: { metrics: PortfolioMetricsResponse }) 
                   style={{ background }}
                 >
                   {value.toFixed(2)}
-                  {!isSelf && (
+                  {isSelf ? (
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded border border-border bg-[#1e1e1e] px-2.5 py-1.5 text-xs text-ink shadow-lg group-hover:block">
+                      <span className="font-semibold">{ticker}</span>
+                      <span className="ml-2 text-muted">Self-correlation — always 1.0</span>
+                    </div>
+                  ) : (
                     <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded border border-border bg-[#1e1e1e] px-2.5 py-1.5 text-xs text-ink shadow-lg group-hover:block">
                       <span className="font-semibold">{ticker} × {tickers[columnIndex]}</span>
                       <span className="ml-2 text-muted">{correlationLabel(value)}</span>
