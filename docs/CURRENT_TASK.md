@@ -18,7 +18,9 @@
 - Added dark-mode tokens, FOUC prevention, persisted `qv-theme` Zustand store, responsive `AppShell`, shared components, lazy routes, framer-motion route/card/sidebar animations, chart theming, and README screenshots.
 - Verification passed: frontend lint/test/build, manual review scans, and Playwright Standard smoke across auth pages, all 8 authenticated route surfaces, chart rendering, theme toggle, and all three sidebar breakpoints.
 
-**Next:** Deploy — set up Supabase + Upstash + Render + Vercel. Record demo video.
+**2026-06-11 Demo-readiness QA pass:** Full E2E QA against running Docker stack. 3 bugs found and fixed. See ENGINEERING_LOG for details. Remaining blocker: Yahoo Finance blocked locally (Docker + WSL2) — need Tiingo API key in `.env` before local demo shows metrics.
+
+**Next:** Add Tiingo API key to `.env` for local demo. Deploy to Render/Vercel for live demo URL. Record demo video.
 
 **2026-06-09 Codex test audit:** Reviewed project context, fixed backend
 lint/type/test drift, and reran checks. Backend market-data tests now mock the

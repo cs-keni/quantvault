@@ -3,6 +3,35 @@
 Reverse-chronological. One entry per session/slice — what changed and why,
 not a diff (git history is authoritative for that).
 
+## 2026-06-11 — QA pass: three UI fixes
+
+Full E2E QA run against the running Docker stack. Three bugs found and fixed:
+
+- **ISSUE-001 (Medium)**: After saving a portfolio via the builder, the
+  dashboard showed "No portfolios yet" because the `["portfolios"]` TanStack
+  Query cache wasn't invalidated before navigation. Fixed by calling
+  `queryClient.invalidateQueries({ queryKey: ["portfolios"] })` in
+  `PortfolioBuilderPage` before `navigate("/dashboard")`.
+
+- **ISSUE-002 (Low)**: Portfolio Builder displayed "Add at least one holding."
+  validation error on fresh page load (before any user interaction). Fixed by
+  adding `hasAttemptedSubmit` state and gating the inline error block on it.
+
+- **ISSUE-003 (Low)**: Mobile header had a non-interactive, unlabeled
+  `PanelLeftClose` icon on the right side that looked like a button. Replaced
+  with a spacer `<div>` to preserve header balance.
+
+Infrastructure note (not a code bug): Yahoo Finance is blocked from Docker
+containers and from this WSL2 host. All market-data endpoints return 503
+locally until a Tiingo API key is added to `.env`.
+
+Checks:
+- `cd frontend && npm run lint` — passed
+- `cd frontend && npm test` — 17 passed
+- `cd frontend && npm run build` — passed
+- `docker compose build frontend` — passed
+- Browser verification: all three fixes confirmed in headless browser
+
 ## 2026-06-09 — README portfolio positioning pass
 
 Updated README as a portfolio/eportfolio-facing artifact without changing

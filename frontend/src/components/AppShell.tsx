@@ -7,7 +7,6 @@ import {
   LogOut,
   Menu,
   Moon,
-  PanelLeftClose,
   Play,
   Plus,
   Sun,
@@ -276,7 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Menu className="h-5 w-5" />
         </button>
         <span className="text-sm font-semibold">QuantVault</span>
-        <PanelLeftClose className="h-5 w-5 text-muted" />
+        <div className="h-9 w-9" />
       </header>
 
       <AnimatePresence>

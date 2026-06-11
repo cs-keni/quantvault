@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
@@ -53,12 +54,14 @@ function toHoldingPayload(holding: HoldingDraft) {
 
 export function PortfolioBuilderPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [benchmarkTicker, setBenchmarkTicker] = useState("SPY");
   const [holdings, setHoldings] = useState<HoldingDraft[]>(() => [createHoldingDraft()]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const validation = useMemo(() => validateHoldingDrafts(holdings), [holdings]);
   const weightBarWidth = Math.min(validation.totalPercent, 100);
@@ -88,6 +91,7 @@ export function PortfolioBuilderPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
+    setHasAttemptedSubmit(true);
 
     if (name.trim() === "") {
       setSubmitError("Portfolio name is required.");
@@ -117,6 +121,7 @@ export function PortfolioBuilderPage() {
         );
       }
 
+      await queryClient.invalidateQueries({ queryKey: ["portfolios"] });
       navigate("/dashboard");
     } catch (error) {
       const detail =
@@ -284,7 +289,7 @@ export function PortfolioBuilderPage() {
             </div>
           </section>
 
-          {validation.errors.length > 0 ? (
+          {hasAttemptedSubmit && validation.errors.length > 0 ? (
             <div className="rounded-lg border border-negative/20 bg-negative/5 p-4 text-sm text-negative">
               {validation.errors[0]}
             </div>
