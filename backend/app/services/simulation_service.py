@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import ssl
 import uuid
 from typing import Any, cast
 
@@ -168,9 +169,8 @@ def run_simulation(self: Any, simulation_id: str, params: dict[str, Any]) -> dic
     """
     simulation_uuid = uuid.UUID(simulation_id)
     task_id = cast(str | None, getattr(self.request, "id", None))
-    # rediss:// (Upstash TLS) requires explicit ssl_cert_reqs in redis-py's sync client.
-    # "CERT_NONE" is the accepted string constant (ssl.CERT_NONE = 0).
-    _ssl = {"ssl_cert_reqs": "CERT_NONE"} if settings.REDIS_URL.startswith("rediss://") else {}
+    # rediss:// (Upstash TLS) requires ssl.CERT_NONE (the int constant, not the string).
+    _ssl = {"ssl_cert_reqs": ssl.CERT_NONE} if settings.REDIS_URL.startswith("rediss://") else {}
     redis_client = redis.Redis.from_url(settings.REDIS_URL, **_ssl)
     eager = celery_app.conf.task_always_eager
     try:

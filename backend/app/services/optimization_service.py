@@ -9,6 +9,7 @@ geometrically compounded annual returns in API-facing points.
 from __future__ import annotations
 
 import logging
+import ssl
 from typing import Any, cast
 
 import numpy as np
@@ -363,8 +364,8 @@ def compute_frontier(self: Any, tickers: list[str], period: str) -> dict[str, An
     """
     normalized_tickers = sorted(ticker.upper() for ticker in tickers)
     cache_key = build_frontier_cache_key(normalized_tickers, period)
-    # rediss:// (Upstash TLS) requires explicit ssl_cert_reqs in redis-py's sync client.
-    ssl_kwargs = {"ssl_cert_reqs": "CERT_NONE"} if settings.REDIS_URL.startswith("rediss://") else {}
+    # rediss:// (Upstash TLS) requires ssl.CERT_NONE (the int constant, not the string).
+    ssl_kwargs = {"ssl_cert_reqs": ssl.CERT_NONE} if settings.REDIS_URL.startswith("rediss://") else {}
     redis_client = redis.Redis.from_url(settings.REDIS_URL, **ssl_kwargs)
     try:
         cached = cast(bytes | str | None, redis_client.get(cache_key))
